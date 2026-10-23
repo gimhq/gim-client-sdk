@@ -1294,6 +1294,15 @@ public protocol GimClientProtocol: AnyObject, Sendable {
     func revokeDevice(deviceId: String) async throws 
     
     /**
+     * Replaces the recovery code with a new one, for a user who lost it:
+     * the previous code stops working on every hub that takes the new
+     * backup (the home hub always does, or the call fails without any
+     * change). Returns the new code, which is not stored and must be shown
+     * to the user once.
+     */
+    func rotateRecoveryCode() async throws  -> RecoveryRotation
+    
+    /**
      * Encrypts, uploads and sends a file; returns its message id. The file
      * at `file_path` is copied before this returns.
      */
@@ -2172,6 +2181,29 @@ open func revokeDevice(deviceId: String)async throws   {
             completeFunc: ffi_gim_core_rust_future_complete_void,
             freeFunc: ffi_gim_core_rust_future_free_void,
             liftFunc: { $0 },
+            errorHandler: FfiConverterTypeGimError_lift
+        )
+}
+    
+    /**
+     * Replaces the recovery code with a new one, for a user who lost it:
+     * the previous code stops working on every hub that takes the new
+     * backup (the home hub always does, or the call fails without any
+     * change). Returns the new code, which is not stored and must be shown
+     * to the user once.
+     */
+open func rotateRecoveryCode()async throws  -> RecoveryRotation  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_gim_core_fn_method_gimclient_rotate_recovery_code(
+                        self.uniffiCloneHandle()
+                )
+            },
+            pollFunc: ffi_gim_core_rust_future_poll_rust_buffer,
+            completeFunc: ffi_gim_core_rust_future_complete_rust_buffer,
+            freeFunc: ffi_gim_core_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeRecoveryRotation_lift,
             errorHandler: FfiConverterTypeGimError_lift
         )
 }
@@ -4650,9 +4682,6 @@ public func FfiConverterTypeClientConfig_lower(_ value: ClientConfig) -> RustBuf
 }
 
 
-/**
- * A device of a user, from the user's signed DeviceList.
- */
 public struct DeviceInfo: Equatable, Hashable {
     public var deviceId: String
     /**
@@ -5377,6 +5406,78 @@ public func FfiConverterTypeReactionGroup_lift(_ buf: RustBuffer) throws -> Reac
 #endif
 public func FfiConverterTypeReactionGroup_lower(_ value: ReactionGroup) -> RustBuffer {
     return FfiConverterTypeReactionGroup.lower(value)
+}
+
+
+/**
+ * A device of a user, from the user's signed DeviceList.
+ * Result of `rotate_recovery_code`.
+ */
+public struct RecoveryRotation: Equatable, Hashable {
+    /**
+     * The new recovery code; not stored, show it to the user once.
+     */
+    public var recoveryCode: String
+    /**
+     * Listed hubs that did not take the new backup: the previous code still
+     * works there until a later rotation reaches them.
+     */
+    public var unsyncedHubIds: [String]
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * The new recovery code; not stored, show it to the user once.
+         */recoveryCode: String, 
+        /**
+         * Listed hubs that did not take the new backup: the previous code still
+         * works there until a later rotation reaches them.
+         */unsyncedHubIds: [String]) {
+        self.recoveryCode = recoveryCode
+        self.unsyncedHubIds = unsyncedHubIds
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension RecoveryRotation: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeRecoveryRotation: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> RecoveryRotation {
+        return
+            try RecoveryRotation(
+                recoveryCode: FfiConverterString.read(from: &buf), 
+                unsyncedHubIds: FfiConverterSequenceString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: RecoveryRotation, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.recoveryCode, into: &buf)
+        FfiConverterSequenceString.write(value.unsyncedHubIds, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeRecoveryRotation_lift(_ buf: RustBuffer) throws -> RecoveryRotation {
+    return try FfiConverterTypeRecoveryRotation.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeRecoveryRotation_lower(_ value: RecoveryRotation) -> RustBuffer {
+    return FfiConverterTypeRecoveryRotation.lower(value)
 }
 
 
@@ -8016,6 +8117,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_gim_core_checksum_method_gimclient_revoke_device() != 54975) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_gim_core_checksum_method_gimclient_rotate_recovery_code() != 7811) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_gim_core_checksum_method_gimclient_send_media() != 37766) {

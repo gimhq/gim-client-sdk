@@ -938,6 +938,8 @@ internal object IntegrityCheckingUniffiLib {
     ): Int
     external fun uniffi_gim_core_checksum_method_gimclient_revoke_device(
     ): Int
+    external fun uniffi_gim_core_checksum_method_gimclient_rotate_recovery_code(
+    ): Int
     external fun uniffi_gim_core_checksum_method_gimclient_send_media(
     ): Int
     external fun uniffi_gim_core_checksum_method_gimclient_send_text(
@@ -1130,6 +1132,8 @@ internal object UniffiLib {
     external fun uniffi_gim_core_fn_method_gimclient_retry_send(`ptr`: Long,`chatId`: RustBuffer.ByValue,`messageId`: RustBuffer.ByValue,
     ): Long
     external fun uniffi_gim_core_fn_method_gimclient_revoke_device(`ptr`: Long,`deviceId`: RustBuffer.ByValue,
+    ): Long
+    external fun uniffi_gim_core_fn_method_gimclient_rotate_recovery_code(`ptr`: Long,
     ): Long
     external fun uniffi_gim_core_fn_method_gimclient_send_media(`ptr`: Long,`chatId`: RustBuffer.ByValue,`filePath`: RustBuffer.ByValue,`mime`: RustBuffer.ByValue,`caption`: RustBuffer.ByValue,`replyTo`: RustBuffer.ByValue,
     ): Long
@@ -1495,6 +1499,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_gim_core_checksum_method_gimclient_revoke_device() and 0xFFFF) != 54975) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if ((lib.uniffi_gim_core_checksum_method_gimclient_rotate_recovery_code() and 0xFFFF) != 7811) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_gim_core_checksum_method_gimclient_send_media() and 0xFFFF) != 37766) {
@@ -3048,6 +3055,15 @@ public interface GimClientInterface {
     suspend fun `revokeDevice`(`deviceId`: kotlin.String)
     
     /**
+     * Replaces the recovery code with a new one, for a user who lost it:
+     * the previous code stops working on every hub that takes the new
+     * backup (the home hub always does, or the call fails without any
+     * change). Returns the new code, which is not stored and must be shown
+     * to the user once.
+     */
+    suspend fun `rotateRecoveryCode`(): RecoveryRotation
+    
+    /**
      * Encrypts, uploads and sends a file; returns its message id. The file
      * at `file_path` is copied before this returns.
      */
@@ -4210,6 +4226,34 @@ open class GimClient: Disposable, AutoCloseable, GimClientInterface
         // lift function
         { },
         
+        // Error FFI converter
+        GimException.ErrorHandler,
+    )
+    }
+
+    
+    /**
+     * Replaces the recovery code with a new one, for a user who lost it:
+     * the previous code stops working on every hub that takes the new
+     * backup (the home hub always does, or the call fails without any
+     * change). Returns the new code, which is not stored and must be shown
+     * to the user once.
+     */
+    @Throws(GimException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+    override suspend fun `rotateRecoveryCode`() : RecoveryRotation {
+        return uniffiRustCallAsync(
+        callWithHandle { uniffiHandle ->
+            UniffiLib.uniffi_gim_core_fn_method_gimclient_rotate_recovery_code(
+                uniffiHandle,
+                
+            )
+        },
+        { future, callback, continuation -> UniffiLib.ffi_gim_core_rust_future_poll_rust_buffer(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_gim_core_rust_future_complete_rust_buffer(future, continuation) },
+        { future -> UniffiLib.ffi_gim_core_rust_future_free_rust_buffer(future) },
+        // lift function
+        { FfiConverterTypeRecoveryRotation.lift(it) },
         // Error FFI converter
         GimException.ErrorHandler,
     )
@@ -7901,9 +7945,6 @@ public object FfiConverterTypeClientConfig: FfiConverterRustBuffer<ClientConfig>
 
 
 
-/**
- * A device of a user, from the user's signed DeviceList.
- */
 data class DeviceInfo (
     var `deviceId`: kotlin.String
     , 
@@ -8458,6 +8499,55 @@ public object FfiConverterTypeReactionGroup: FfiConverterRustBuffer<ReactionGrou
             FfiConverterString.write(value.`emoji`, buf)
             FfiConverterUInt.write(value.`count`, buf)
             FfiConverterBoolean.write(value.`own`, buf)
+    }
+}
+
+
+
+/**
+ * A device of a user, from the user's signed DeviceList.
+ * Result of `rotate_recovery_code`.
+ */
+data class RecoveryRotation (
+    /**
+     * The new recovery code; not stored, show it to the user once.
+     */
+    var `recoveryCode`: kotlin.String
+    , 
+    /**
+     * Listed hubs that did not take the new backup: the previous code still
+     * works there until a later rotation reaches them.
+     */
+    var `unsyncedHubIds`: List<kotlin.String>
+    
+){
+    
+
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeRecoveryRotation: FfiConverterRustBuffer<RecoveryRotation> {
+    override fun read(buf: ByteBuffer): RecoveryRotation {
+        return RecoveryRotation(
+            FfiConverterString.read(buf),
+            FfiConverterSequenceString.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: RecoveryRotation) = (
+            FfiConverterString.allocationSize(value.`recoveryCode`) +
+            FfiConverterSequenceString.allocationSize(value.`unsyncedHubIds`)
+    )
+
+    override fun write(value: RecoveryRotation, buf: ByteBuffer) {
+            FfiConverterString.write(value.`recoveryCode`, buf)
+            FfiConverterSequenceString.write(value.`unsyncedHubIds`, buf)
     }
 }
 

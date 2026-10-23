@@ -607,6 +607,11 @@ uint64_t uniffi_gim_core_fn_method_gimclient_retry_send(uint64_t ptr, RustBuffer
 uint64_t uniffi_gim_core_fn_method_gimclient_revoke_device(uint64_t ptr, RustBuffer device_id
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_METHOD_GIMCLIENT_ROTATE_RECOVERY_CODE
+#define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_METHOD_GIMCLIENT_ROTATE_RECOVERY_CODE
+uint64_t uniffi_gim_core_fn_method_gimclient_rotate_recovery_code(uint64_t ptr
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_METHOD_GIMCLIENT_SEND_MEDIA
 #define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_METHOD_GIMCLIENT_SEND_MEDIA
 uint64_t uniffi_gim_core_fn_method_gimclient_send_media(uint64_t ptr, RustBuffer chat_id, RustBuffer file_path, RustBuffer mime, RustBuffer caption, RustBuffer reply_to
@@ -1425,6 +1430,12 @@ uint16_t uniffi_gim_core_checksum_method_gimclient_retry_send(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_METHOD_GIMCLIENT_REVOKE_DEVICE
 #define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_METHOD_GIMCLIENT_REVOKE_DEVICE
 uint16_t uniffi_gim_core_checksum_method_gimclient_revoke_device(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_METHOD_GIMCLIENT_ROTATE_RECOVERY_CODE
+#define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_METHOD_GIMCLIENT_ROTATE_RECOVERY_CODE
+uint16_t uniffi_gim_core_checksum_method_gimclient_rotate_recovery_code(void
     
 );
 #endif

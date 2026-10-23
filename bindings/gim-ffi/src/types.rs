@@ -12,6 +12,16 @@ pub struct Session {
 }
 
 /// A device of a user, from the user's signed DeviceList.
+/// Result of `rotate_recovery_code`.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct RecoveryRotation {
+    /// The new recovery code; not stored, show it to the user once.
+    pub recovery_code: String,
+    /// Listed hubs that did not take the new backup: the previous code still
+    /// works there until a later rotation reaches them.
+    pub unsynced_hub_ids: Vec<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
 pub struct DeviceInfo {
     pub device_id: String,

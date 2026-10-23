@@ -30,6 +30,7 @@ use common::{server_handshakes, server_messages, Device, FlakyTransport};
 use gim_base::model::{ChatKind, GroupMessage, KeyPackageRecord, SendState, StateChange};
 use gim_base::{MemoryStore, StateReader};
 use gim_common::{now_ms, ClientId, DeviceRef, GroupId, UserId};
+use gim_identity::recovery::open_root_key_backup;
 use gim_identity::{HostingEntry, RootKey, SignedHostingRecord, UserHostingRecord};
 use gim_sdk::testing::{FakeTransport, MemorySecretStorage};
 use gim_sdk::transport::{
@@ -1692,4 +1693,42 @@ async fn handles_unknown_on_the_home_hub_are_looked_up_on_the_other_hubs() {
     assert_eq!(found.handle, "dave");
     assert!(s.hub_b.reads().contains(&("user", dave.user_id())));
     assert!(s.alice.find_user("nobody").await.unwrap().is_none());
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_rotated_recovery_code_replaces_the_backup_on_every_listed_hub() {
+    let s = Setup::new().await;
+    let user_id = s.user_id();
+
+    let rotation = s.alice.rotate_recovery_code().await.unwrap();
+    assert!(rotation.unsynced_hubs.is_empty());
+    for fake in [&s.fake_a, &s.fake_b] {
+        let backup = fake.recovery_backup(&user_id).await.unwrap().unwrap();
+        assert!(open_root_key_backup(&backup, &rotation.code, &user_id).is_ok());
+        assert!(open_root_key_backup(&backup, &s.recovery_code, &user_id).is_err());
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_listed_hub_that_misses_the_rotated_backup_is_reported() {
+    let s = Setup::new().await;
+    let user_id = s.user_id();
+    s.hub_b.state.down.store(true, Ordering::SeqCst);
+
+    let rotation = s.alice.rotate_recovery_code().await.unwrap();
+    assert_eq!(rotation.unsynced_hubs, [Setup::hub_id(&s.fake_b)]);
+    let backup = s.fake_a.recovery_backup(&user_id).await.unwrap().unwrap();
+    assert!(open_root_key_backup(&backup, &rotation.code, &user_id).is_ok());
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn rotation_fails_without_change_when_the_home_hub_is_down() {
+    let s = Setup::new().await;
+    let user_id = s.user_id();
+    s.hub_a.state.down.store(true, Ordering::SeqCst);
+
+    assert!(s.alice.rotate_recovery_code().await.is_err());
+    s.hub_a.state.down.store(false, Ordering::SeqCst);
+    let backup = s.fake_a.recovery_backup(&user_id).await.unwrap().unwrap();
+    assert!(open_root_key_backup(&backup, &s.recovery_code, &user_id).is_ok());
 }

@@ -28,7 +28,7 @@ use crate::timeline::PlatformTimeZone;
 use crate::{
     ChatListDiff, ChatListListener, ChatState, ConnectionState, DeviceInfo, GimError, HubInfo,
     LinkSession, LocalTimeZone, NotificationContent, PendingApproval, PlatformHooks,
-    PushRegistration, Session, TaskHandle, Timeline, UserProfile,
+    PushRegistration, RecoveryRotation, Session, TaskHandle, Timeline, UserProfile,
 };
 
 type Sdk = Client<SqliteStore>;
@@ -516,6 +516,19 @@ impl GimClient {
     pub async fn create_identity(&self, display_name: String) -> Result<String, GimError> {
         let code = self.sdk()?.create_identity(&display_name).await?;
         Ok(code.to_string())
+    }
+
+    /// Replaces the recovery code with a new one, for a user who lost it:
+    /// the previous code stops working on every hub that takes the new
+    /// backup (the home hub always does, or the call fails without any
+    /// change). Returns the new code, which is not stored and must be shown
+    /// to the user once.
+    pub async fn rotate_recovery_code(&self) -> Result<RecoveryRotation, GimError> {
+        let rotation = self.sdk()?.rotate_recovery_code().await?;
+        Ok(RecoveryRotation {
+            recovery_code: rotation.code.to_string(),
+            unsynced_hub_ids: rotation.unsynced_hubs,
+        })
     }
 
     /// Restores the user on this (fresh) device from its recovery code

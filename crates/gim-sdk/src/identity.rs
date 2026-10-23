@@ -6,7 +6,7 @@ use std::collections::BTreeSet;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
-use gim_base::model::UserInfo;
+use gim_base::model::{HubState, UserInfo};
 use gim_base::{BaseClient, StateReader, StateStore, StoreError, StoreTxn};
 use gim_common::{now_ms, DeviceId, DeviceRef, UserId};
 use gim_crypto::CryptoStore;
@@ -32,6 +32,17 @@ pub(crate) struct Enrollment {
     /// Sealed root key backup to upload (new identities only).
     pub(crate) backup: Option<Vec<u8>>,
     pub(crate) me: UserInfo,
+}
+
+/// Result of [`Client::rotate_recovery_code`].
+#[derive(Debug, Clone)]
+pub struct RecoveryRotation {
+    /// The new recovery code.
+    pub code: RecoveryCode,
+    /// Listed hubs that did not take the new backup (unreachable, or no
+    /// session there): the previous code still opens the backup they hold
+    /// until a later rotation reaches them.
+    pub unsynced_hubs: Vec<String>,
 }
 
 pub(crate) fn random_seed() -> Result<Zeroizing<[u8; 32]>> {
@@ -73,6 +84,62 @@ impl<S: StateStore + 'static> Client<S> {
     /// other failed step.
     pub async fn register(&self, handle: &str, display_name: &str) -> Result<RecoveryCode> {
         self.create_user(display_name, Some(handle)).await
+    }
+
+    /// Replaces the recovery code: seals the root key with a new code and
+    /// stores that backup on the home hub, then on every other listed hub
+    /// this device reaches. The previous code no longer opens a replaced
+    /// backup. Fails without any change if the home hub does not take it.
+    ///
+    /// The new code is stored nowhere: show it to the user once.
+    pub async fn rotate_recovery_code(&self) -> Result<RecoveryRotation> {
+        let session = self.require_session()?;
+        let root = self.root_key()?;
+        let code = RecoveryCode::generate().map_err(ClientError::identity)?;
+        let sealing = code.clone();
+        // Argon2id with 64 MiB: off the async runtime.
+        let backup = tokio::task::spawn_blocking(move || seal_root_key_backup(&root, &sealing))
+            .await
+            .map_err(|e| ClientError::Task(e.to_string()))?
+            .map_err(ClientError::identity)?;
+        let user_id = &session.device.user_id;
+        self.authed(|t| {
+            let backup = backup.clone();
+            async move {
+                self.inner
+                    .transport
+                    .put_recovery_backup(&t, user_id, backup)
+                    .await
+            }
+        })
+        .await?;
+        let mut stored = BTreeSet::from([self.home_target().hub_id]);
+        for hub in self.submission_hubs().await.into_iter().filter(|h| !h.home) {
+            let put = self
+                .authed_on(&hub, |transport, t| {
+                    let backup = backup.clone();
+                    async move { transport.put_recovery_backup(&t, user_id, backup).await }
+                })
+                .await;
+            match put {
+                Ok(()) => {
+                    stored.insert(hub.hub_id);
+                }
+                Err(err) => {
+                    tracing::warn!(hub_id = %hub.hub_id, error = %err, "cannot store the new recovery backup");
+                }
+            }
+        }
+        let listed = self.read(|store, _| Ok(store.hubs()?)).await?;
+        let unsynced_hubs = listed
+            .into_iter()
+            .filter(|h| h.state != HubState::Removed && !stored.contains(&h.hub_id))
+            .map(|h| h.hub_id)
+            .collect();
+        Ok(RecoveryRotation {
+            code,
+            unsynced_hubs,
+        })
     }
 
     async fn create_user(&self, display_name: &str, handle: Option<&str>) -> Result<RecoveryCode> {

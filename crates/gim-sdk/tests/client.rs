@@ -703,3 +703,37 @@ async fn revoked_device_is_rejected_and_removed() {
         .unwrap()
         .is_none());
 }
+
+#[tokio::test]
+async fn rotating_the_recovery_code_replaces_the_backup() {
+    let transport = FakeTransport::new();
+    let store = Arc::new(MemoryStore::new());
+    let secrets = Arc::new(MemorySecretStorage::new());
+    let data_dir = tempfile::tempdir().unwrap();
+    let client = build(&transport, &store, &secrets, data_dir.path());
+    let old = client.create_identity("Alice").await.unwrap();
+    let user = client.session().unwrap().device.user_id;
+
+    let rotation = client.rotate_recovery_code().await.unwrap();
+    assert_ne!(rotation.code.to_string(), old.to_string());
+    assert!(rotation.unsynced_hubs.is_empty());
+
+    // Only the new code opens the stored backup, to the same root key.
+    let backup = transport.service().recovery_backup(&user).unwrap();
+    let root = open_root_key_backup(&backup, &rotation.code, &user).unwrap();
+    assert_eq!(root.public().user_id(), user);
+    assert!(open_root_key_backup(&backup, &old, &user).is_err());
+}
+
+#[tokio::test]
+async fn rotating_the_recovery_code_needs_a_session() {
+    let transport = FakeTransport::new();
+    let store = Arc::new(MemoryStore::new());
+    let secrets = Arc::new(MemorySecretStorage::new());
+    let data_dir = tempfile::tempdir().unwrap();
+    let client = build(&transport, &store, &secrets, data_dir.path());
+    assert!(matches!(
+        client.rotate_recovery_code().await,
+        Err(ClientError::NotLoggedIn)
+    ));
+}

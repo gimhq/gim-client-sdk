@@ -105,6 +105,11 @@ user's signed DeviceList. Handles are optional directory entries pointing at a u
   (they can no longer sign in and peers remove them), `false` keeps them all active. A list that
   lands concurrently is read and rebuilt once. Chats are not rejoined automatically; other members
   (or another own device) must add this device again.
+- **New recovery code**: the code is stored nowhere, so a lost one cannot be shown again.
+  `rotateRecoveryCode()` seals the root key with a new code and replaces the backup on the home
+  hub (required: otherwise the call fails and nothing changes), then on every other listed hub
+  this device reaches. It returns `RecoveryRotation(recoveryCode, unsyncedHubIds)`; the old code
+  keeps working on the hubs in `unsyncedHubIds` until a later rotation reaches them.
 - **Hosting record** (federation): gim-core keeps the user's hosting record, signed with the root
   key, on the hub without any app call. `createIdentity` and `restoreFromRecovery` publish one,
   `waitLink` only if the hub has no valid one; while sync runs it is renewed (7-day lifetime,
@@ -272,6 +277,7 @@ is never deleted, so that both processes always lock the same file.
 | `localStateReset()` | `Boolean` | Synchronous. Whether opening this client discarded an existing local database. |
 | `createIdentity(displayName)` | recovery code | Creates the user with this device as its first one and signs in. |
 | `restoreFromRecovery(userId, recoveryCode, revokeOthers)` | | See *Identity and devices*. `InvalidInput` for a malformed code, `Crypto` for a wrong one, `NotFound` if the hub has no DeviceList of the user, `RetryLater` while the hub throttles the read. |
+| `rotateRecoveryCode()` | `RecoveryRotation` | See *Identity and devices*. `NotRegistered` without a session. |
 | `startLink(hubs)` | `LinkSession` | Synchronous. New device; `LinkSession.qrString()`. |
 | `waitLink(link)` | SAS | New device; signs in once the bundle arrives. |
 | `confirmLink(accepted)` | | New device; `false` wipes it like `signOut()`. |

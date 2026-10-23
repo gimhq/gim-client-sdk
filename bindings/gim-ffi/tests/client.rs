@@ -1284,3 +1284,26 @@ async fn only_the_app_signs_out_and_the_extension_fails_after() {
     ));
     assert!(!alice.hooks.path("gim.sqlite3").exists());
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_rotated_recovery_code_restores_and_the_old_one_does_not() {
+    let transport = FakeTransport::new();
+    let lost = open(&transport, &MemoryHooks::new()).await;
+    let old = lost.create_identity("Alice".to_string()).await.unwrap();
+    let user_id = lost.user_id().unwrap();
+    let rotation = lost.rotate_recovery_code().await.unwrap();
+    assert_ne!(rotation.recovery_code, old);
+    assert!(rotation.unsynced_hub_ids.is_empty());
+    drop(lost);
+
+    let fresh = open(&transport, &MemoryHooks::new()).await;
+    assert!(fresh
+        .restore_from_recovery(user_id.clone(), old, true)
+        .await
+        .is_err());
+    fresh
+        .restore_from_recovery(user_id.clone(), rotation.recovery_code, true)
+        .await
+        .unwrap();
+    assert_eq!(fresh.user_id(), Some(user_id));
+}
