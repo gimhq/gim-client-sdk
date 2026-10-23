@@ -9,6 +9,7 @@ mod convert;
 mod error;
 mod hooks;
 mod link;
+mod recovery_kit;
 mod task_handle;
 mod timeline;
 mod types;
@@ -23,6 +24,10 @@ pub use client::{create_client_with_fake_servers, create_client_with_fake_transp
 pub use error::GimError;
 pub use hooks::PlatformHooks;
 pub use link::{LinkSession, PendingApproval};
+pub use recovery_kit::{
+    format_recovery_kit, matches_recovery_key_ending, parse_recovery_kit, recovery_key_ending,
+    ParsedRecoveryKit, RecoveryKitLabels,
+};
 pub use task_handle::TaskHandle;
 pub use timeline::{LocalTimeZone, Timeline, TimelineDiff, TimelineListener};
 pub use types::{

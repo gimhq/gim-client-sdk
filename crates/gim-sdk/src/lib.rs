@@ -27,6 +27,7 @@ mod link;
 mod media;
 mod outbox;
 mod push;
+pub mod recovery_kit;
 mod routing;
 mod secrets;
 mod self_group;

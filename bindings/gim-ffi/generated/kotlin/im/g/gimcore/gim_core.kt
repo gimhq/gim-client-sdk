@@ -868,6 +868,14 @@ internal object IntegrityCheckingUniffiLib {
     ): Int
     external fun uniffi_gim_core_checksum_func_create_client(
     ): Int
+    external fun uniffi_gim_core_checksum_func_format_recovery_kit(
+    ): Int
+    external fun uniffi_gim_core_checksum_func_matches_recovery_key_ending(
+    ): Int
+    external fun uniffi_gim_core_checksum_func_parse_recovery_kit(
+    ): Int
+    external fun uniffi_gim_core_checksum_func_recovery_key_ending(
+    ): Int
     external fun uniffi_gim_core_checksum_method_chatlistlistener_on_update(
     ): Int
     external fun uniffi_gim_core_checksum_method_connectionstatelistener_on_change(
@@ -1329,6 +1337,14 @@ internal object UniffiLib {
     ): Long
     external fun uniffi_gim_core_fn_func_create_client(`config`: RustBuffer.ByValue,`hooks`: Long,
     ): Long
+    external fun uniffi_gim_core_fn_func_format_recovery_kit(`userId`: RustBuffer.ByValue,`recoveryCode`: RustBuffer.ByValue,`labels`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    external fun uniffi_gim_core_fn_func_matches_recovery_key_ending(`recoveryCode`: RustBuffer.ByValue,`typed`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): Byte
+    external fun uniffi_gim_core_fn_func_parse_recovery_kit(`text`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    external fun uniffi_gim_core_fn_func_recovery_key_ending(`recoveryCode`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
     external fun ffi_gim_core_rustbuffer_alloc(`size`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     external fun ffi_gim_core_rustbuffer_from_bytes(`bytes`: ForeignBytes.ByValue,uniffi_out_err: UniffiRustCallStatus, 
@@ -1458,6 +1474,18 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_gim_core_checksum_func_create_client() and 0xFFFF) != 59196) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if ((lib.uniffi_gim_core_checksum_func_format_recovery_kit() and 0xFFFF) != 12801) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if ((lib.uniffi_gim_core_checksum_func_matches_recovery_key_ending() and 0xFFFF) != 59755) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if ((lib.uniffi_gim_core_checksum_func_parse_recovery_kit() and 0xFFFF) != 33039) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if ((lib.uniffi_gim_core_checksum_func_recovery_key_ending() and 0xFFFF) != 19920) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_gim_core_checksum_method_chatlistlistener_on_update() and 0xFFFF) != 37204) {
@@ -9024,6 +9052,48 @@ public object FfiConverterTypeNotificationContent: FfiConverterRustBuffer<Notifi
 
 
 /**
+ * What `parse_recovery_kit` found: the normalized, valid user id and
+ * recovery code (39 symbols, no separators), each if present.
+ */
+data class ParsedRecoveryKit (
+    var `userId`: kotlin.String?
+    , 
+    var `recoveryCode`: kotlin.String?
+    
+){
+    
+
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeParsedRecoveryKit: FfiConverterRustBuffer<ParsedRecoveryKit> {
+    override fun read(buf: ByteBuffer): ParsedRecoveryKit {
+        return ParsedRecoveryKit(
+            FfiConverterOptionalString.read(buf),
+            FfiConverterOptionalString.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: ParsedRecoveryKit) = (
+            FfiConverterOptionalString.allocationSize(value.`userId`) +
+            FfiConverterOptionalString.allocationSize(value.`recoveryCode`)
+    )
+
+    override fun write(value: ParsedRecoveryKit, buf: ByteBuffer) {
+            FfiConverterOptionalString.write(value.`userId`, buf)
+            FfiConverterOptionalString.write(value.`recoveryCode`, buf)
+    }
+}
+
+
+
+/**
  * The privacy settings, synced across the user's devices.
  */
 data class PrivacySettings (
@@ -9201,6 +9271,57 @@ public object FfiConverterTypeReactionGroup: FfiConverterRustBuffer<ReactionGrou
             FfiConverterString.write(value.`emoji`, buf)
             FfiConverterUInt.write(value.`count`, buf)
             FfiConverterBoolean.write(value.`own`, buf)
+    }
+}
+
+
+
+/**
+ * The app's localized words of the kit text.
+ */
+data class RecoveryKitLabels (
+    var `title`: kotlin.String
+    , 
+    var `accountId`: kotlin.String
+    , 
+    var `recoveryKey`: kotlin.String
+    , 
+    var `note`: kotlin.String
+    
+){
+    
+
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeRecoveryKitLabels: FfiConverterRustBuffer<RecoveryKitLabels> {
+    override fun read(buf: ByteBuffer): RecoveryKitLabels {
+        return RecoveryKitLabels(
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: RecoveryKitLabels) = (
+            FfiConverterString.allocationSize(value.`title`) +
+            FfiConverterString.allocationSize(value.`accountId`) +
+            FfiConverterString.allocationSize(value.`recoveryKey`) +
+            FfiConverterString.allocationSize(value.`note`)
+    )
+
+    override fun write(value: RecoveryKitLabels, buf: ByteBuffer) {
+            FfiConverterString.write(value.`title`, buf)
+            FfiConverterString.write(value.`accountId`, buf)
+            FfiConverterString.write(value.`recoveryKey`, buf)
+            FfiConverterString.write(value.`note`, buf)
     }
 }
 
@@ -12138,5 +12259,66 @@ public object FfiConverterSequenceTypeTimelineItem: FfiConverterRustBuffer<List<
         GimException.ErrorHandler,
     )
     }
+
+        /**
+         * The kit text: title, `"<accountId>: <user id>"`,
+         * `"<recoveryKey>: <code grouped by four>"`, a blank line and the note.
+         */ fun `formatRecoveryKit`(`userId`: kotlin.String, `recoveryCode`: kotlin.String, `labels`: RecoveryKitLabels): kotlin.String {
+            return FfiConverterString.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.uniffi_gim_core_fn_func_format_recovery_kit(
+    
+        
+        FfiConverterString.lower(`userId`),
+        FfiConverterString.lower(`recoveryCode`),
+        FfiConverterTypeRecoveryKitLabels.lower(`labels`),_status)
+}
+    )
+    }
+    
+
+        /**
+         * `typed` is the code's last four symbols (case, `-` and spaces ignored).
+         */ fun `matchesRecoveryKeyEnding`(`recoveryCode`: kotlin.String, `typed`: kotlin.String): kotlin.Boolean {
+            return FfiConverterBoolean.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.uniffi_gim_core_fn_func_matches_recovery_key_ending(
+    
+        
+        FfiConverterString.lower(`recoveryCode`),
+        FfiConverterString.lower(`typed`),_status)
+}
+    )
+    }
+    
+
+        /**
+         * Finds the user id and the recovery code in pasted text, whatever the
+         * labels' language.
+         */ fun `parseRecoveryKit`(`text`: kotlin.String): ParsedRecoveryKit {
+            return FfiConverterTypeParsedRecoveryKit.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.uniffi_gim_core_fn_func_parse_recovery_kit(
+    
+        
+        FfiConverterString.lower(`text`),_status)
+}
+    )
+    }
+    
+
+        /**
+         * The last four symbols of the recovery code.
+         */ fun `recoveryKeyEnding`(`recoveryCode`: kotlin.String): kotlin.String {
+            return FfiConverterString.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.uniffi_gim_core_fn_func_recovery_key_ending(
+    
+        
+        FfiConverterString.lower(`recoveryCode`),_status)
+}
+    )
+    }
+    
 
 

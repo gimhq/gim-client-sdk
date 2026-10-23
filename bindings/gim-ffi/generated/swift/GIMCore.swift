@@ -5679,6 +5679,64 @@ public func FfiConverterTypeNotificationContent_lower(_ value: NotificationConte
 
 
 /**
+ * What `parse_recovery_kit` found: the normalized, valid user id and
+ * recovery code (39 symbols, no separators), each if present.
+ */
+public struct ParsedRecoveryKit: Equatable, Hashable {
+    public var userId: String?
+    public var recoveryCode: String?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(userId: String?, recoveryCode: String?) {
+        self.userId = userId
+        self.recoveryCode = recoveryCode
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension ParsedRecoveryKit: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeParsedRecoveryKit: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ParsedRecoveryKit {
+        return
+            try ParsedRecoveryKit(
+                userId: FfiConverterOptionString.read(from: &buf), 
+                recoveryCode: FfiConverterOptionString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: ParsedRecoveryKit, into buf: inout [UInt8]) {
+        FfiConverterOptionString.write(value.userId, into: &buf)
+        FfiConverterOptionString.write(value.recoveryCode, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeParsedRecoveryKit_lift(_ buf: RustBuffer) throws -> ParsedRecoveryKit {
+    return try FfiConverterTypeParsedRecoveryKit.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeParsedRecoveryKit_lower(_ value: ParsedRecoveryKit) -> RustBuffer {
+    return FfiConverterTypeParsedRecoveryKit.lower(value)
+}
+
+
+/**
  * The privacy settings, synced across the user's devices.
  */
 public struct PrivacySettings: Equatable, Hashable {
@@ -5932,6 +5990,71 @@ public func FfiConverterTypeReactionGroup_lift(_ buf: RustBuffer) throws -> Reac
 #endif
 public func FfiConverterTypeReactionGroup_lower(_ value: ReactionGroup) -> RustBuffer {
     return FfiConverterTypeReactionGroup.lower(value)
+}
+
+
+/**
+ * The app's localized words of the kit text.
+ */
+public struct RecoveryKitLabels: Equatable, Hashable {
+    public var title: String
+    public var accountId: String
+    public var recoveryKey: String
+    public var note: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(title: String, accountId: String, recoveryKey: String, note: String) {
+        self.title = title
+        self.accountId = accountId
+        self.recoveryKey = recoveryKey
+        self.note = note
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension RecoveryKitLabels: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeRecoveryKitLabels: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> RecoveryKitLabels {
+        return
+            try RecoveryKitLabels(
+                title: FfiConverterString.read(from: &buf), 
+                accountId: FfiConverterString.read(from: &buf), 
+                recoveryKey: FfiConverterString.read(from: &buf), 
+                note: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: RecoveryKitLabels, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.title, into: &buf)
+        FfiConverterString.write(value.accountId, into: &buf)
+        FfiConverterString.write(value.recoveryKey, into: &buf)
+        FfiConverterString.write(value.note, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeRecoveryKitLabels_lift(_ buf: RustBuffer) throws -> RecoveryKitLabels {
+    return try FfiConverterTypeRecoveryKitLabels.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeRecoveryKitLabels_lower(_ value: RecoveryKitLabels) -> RustBuffer {
+    return FfiConverterTypeRecoveryKitLabels.lower(value)
 }
 
 
@@ -8625,6 +8748,55 @@ public func createClient(config: ClientConfig, hooks: PlatformHooks)async throws
             errorHandler: FfiConverterTypeGimError_lift
         )
 }
+/**
+ * The kit text: title, `"<accountId>: <user id>"`,
+ * `"<recoveryKey>: <code grouped by four>"`, a blank line and the note.
+ */
+public func formatRecoveryKit(userId: String, recoveryCode: String, labels: RecoveryKitLabels) -> String  {
+    return try!  FfiConverterString.lift(try! rustCall() {
+        uniffiCallStatus in
+    uniffi_gim_core_fn_func_format_recovery_kit(
+        FfiConverterString.lower(userId),
+        FfiConverterString.lower(recoveryCode),
+        FfiConverterTypeRecoveryKitLabels_lower(labels),uniffiCallStatus
+    )
+})
+}
+/**
+ * `typed` is the code's last four symbols (case, `-` and spaces ignored).
+ */
+public func matchesRecoveryKeyEnding(recoveryCode: String, typed: String) -> Bool  {
+    return try!  FfiConverterBool.lift(try! rustCall() {
+        uniffiCallStatus in
+    uniffi_gim_core_fn_func_matches_recovery_key_ending(
+        FfiConverterString.lower(recoveryCode),
+        FfiConverterString.lower(typed),uniffiCallStatus
+    )
+})
+}
+/**
+ * Finds the user id and the recovery code in pasted text, whatever the
+ * labels' language.
+ */
+public func parseRecoveryKit(text: String) -> ParsedRecoveryKit  {
+    return try!  FfiConverterTypeParsedRecoveryKit_lift(try! rustCall() {
+        uniffiCallStatus in
+    uniffi_gim_core_fn_func_parse_recovery_kit(
+        FfiConverterString.lower(text),uniffiCallStatus
+    )
+})
+}
+/**
+ * The last four symbols of the recovery code.
+ */
+public func recoveryKeyEnding(recoveryCode: String) -> String  {
+    return try!  FfiConverterString.lift(try! rustCall() {
+        uniffiCallStatus in
+    uniffi_gim_core_fn_func_recovery_key_ending(
+        FfiConverterString.lower(recoveryCode),uniffiCallStatus
+    )
+})
+}
 
 private enum InitializationResult {
     case ok
@@ -8651,6 +8823,18 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_gim_core_checksum_func_create_client() != 59196) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_gim_core_checksum_func_format_recovery_kit() != 12801) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_gim_core_checksum_func_matches_recovery_key_ending() != 59755) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_gim_core_checksum_func_parse_recovery_kit() != 33039) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_gim_core_checksum_func_recovery_key_ending() != 19920) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_gim_core_checksum_method_chatlistlistener_on_update() != 37204) {

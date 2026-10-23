@@ -1020,6 +1020,26 @@ uint64_t uniffi_gim_core_fn_func_muted_forever(RustCallStatus *_Nonnull out_stat
 uint64_t uniffi_gim_core_fn_func_create_client(RustBuffer config, uint64_t hooks
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_FUNC_FORMAT_RECOVERY_KIT
+#define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_FUNC_FORMAT_RECOVERY_KIT
+RustBuffer uniffi_gim_core_fn_func_format_recovery_kit(RustBuffer user_id, RustBuffer recovery_code, RustBuffer labels, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_FUNC_MATCHES_RECOVERY_KEY_ENDING
+#define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_FUNC_MATCHES_RECOVERY_KEY_ENDING
+int8_t uniffi_gim_core_fn_func_matches_recovery_key_ending(RustBuffer recovery_code, RustBuffer typed, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_FUNC_PARSE_RECOVERY_KIT
+#define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_FUNC_PARSE_RECOVERY_KIT
+RustBuffer uniffi_gim_core_fn_func_parse_recovery_kit(RustBuffer text, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_FUNC_RECOVERY_KEY_ENDING
+#define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_FUNC_RECOVERY_KEY_ENDING
+RustBuffer uniffi_gim_core_fn_func_recovery_key_ending(RustBuffer recovery_code, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_FFI_GIM_CORE_RUSTBUFFER_ALLOC
 #define UNIFFI_FFIDEF_FFI_GIM_CORE_RUSTBUFFER_ALLOC
 RustBuffer ffi_gim_core_rustbuffer_alloc(uint64_t size, RustCallStatus *_Nonnull out_status
@@ -1301,6 +1321,30 @@ uint16_t uniffi_gim_core_checksum_func_muted_forever(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_FUNC_CREATE_CLIENT
 #define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_FUNC_CREATE_CLIENT
 uint16_t uniffi_gim_core_checksum_func_create_client(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_FUNC_FORMAT_RECOVERY_KIT
+#define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_FUNC_FORMAT_RECOVERY_KIT
+uint16_t uniffi_gim_core_checksum_func_format_recovery_kit(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_FUNC_MATCHES_RECOVERY_KEY_ENDING
+#define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_FUNC_MATCHES_RECOVERY_KEY_ENDING
+uint16_t uniffi_gim_core_checksum_func_matches_recovery_key_ending(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_FUNC_PARSE_RECOVERY_KIT
+#define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_FUNC_PARSE_RECOVERY_KIT
+uint16_t uniffi_gim_core_checksum_func_parse_recovery_kit(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_FUNC_RECOVERY_KEY_ENDING
+#define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_FUNC_RECOVERY_KEY_ENDING
+uint16_t uniffi_gim_core_checksum_func_recovery_key_ending(void
     
 );
 #endif

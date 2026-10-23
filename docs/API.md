@@ -111,6 +111,19 @@ user's signed DeviceList. Handles are optional directory entries pointing at a u
   hub (required: otherwise the call fails and nothing changes), then on every other listed hub
   this device reaches. It returns `RecoveryRotation(recoveryCode, unsyncedHubIds)`; the old code
   keeps working on the hubs in `unsyncedHubIds` until a later rotation reaches them.
+- **Recovery kit**: show and save the user id and the recovery code together, as one text (copy,
+  share, file), with these synchronous functions that never throw:
+  - `formatRecoveryKit(userId, recoveryCode, RecoveryKitLabels(title, accountId, recoveryKey,
+    note))` returns `title`, `"<accountId>: <user id>"`, `"<recoveryKey>: <code grouped by four>"`,
+    a blank line and `note`, each line ending in `\n`. The labels are the app's localized words.
+  - `parseRecoveryKit(text)` returns `ParsedRecoveryKit(userId?, recoveryCode?)`: the first user id
+    and the first valid recovery code (39 symbols, no separators) in pasted text, ignoring the
+    labels, so a kit in any language, surrounded by other text or typed by hand still parses. The
+    code may be grouped with `-` or single spaces and in any case; the user id is never read as
+    part of it. Pass the results to `restoreFromRecovery`.
+  - `recoveryKeyEnding(recoveryCode)` is the code's last four symbols, and
+    `matchesRecoveryKeyEnding(recoveryCode, typed)` checks that the user typed them back (case,
+    `-` and spaces ignored), to confirm the kit was saved.
 - **Hosting record** (federation): gim-core keeps the user's hosting record, signed with the root
   key, on the hub without any app call. `createIdentity` and `restoreFromRecovery` publish one,
   `waitLink` only if the hub has no valid one; while sync runs it is renewed (7-day lifetime,
