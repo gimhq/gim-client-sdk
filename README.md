@@ -315,13 +315,11 @@ bitcode and link-test notes. `out/` is never committed.
   its checksum, the Swift sources and `GIM_CORE_VERSION`.
 - `integration` (every push, pull request, manual run): checks out gim-hub at
   the pinned commit (`scripts/gim-hub-dev.sh rev`, the `GIM_HUB_REV` default,
-  so CI and local runs test the same hub) with the read-only deploy key in the
-  `GIM_HUB_DEPLOY_KEY` secret, builds the hub image from that checkout
-  (`GIM_HUB_CHECKOUT`, no `git archive`) and runs the single-hub and
+  so CI and local runs test the same hub), builds the hub image from that
+  checkout (`GIM_HUB_CHECKOUT`, no `git archive`) and runs the single-hub and
   federation suites of `scripts/integration-test.sh` and both modes of
   `testing/gim-cli-interop.sh` on a `gim-ci` network. Hub logs are printed
-  on failure. Without the secret (pull requests from forks) the
-  `integration-gate` job skips it.
+  on failure.
 
 To build the hub from a directory that already holds `GIM_HUB_REV` locally:
 

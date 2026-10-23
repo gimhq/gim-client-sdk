@@ -58,27 +58,7 @@ jobs:
             exit 1
           fi
 
-  # gim-hub is private: its read-only deploy key is a secret that fork PRs do
-  # not get, so the integration job is skipped there instead of failing.
-  integration-gate:
-    runs-on: ubuntu-latest
-    outputs:
-      enabled: ${{ steps.check.outputs.enabled }}
-    steps:
-      - id: check
-        env:
-          GIM_HUB_DEPLOY_KEY: ${{ secrets.GIM_HUB_DEPLOY_KEY }}
-        run: |
-          if [ -n "$GIM_HUB_DEPLOY_KEY" ]; then
-            echo "enabled=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "::notice::GIM_HUB_DEPLOY_KEY is not available; skipping the integration job"
-            echo "enabled=false" >> "$GITHUB_OUTPUT"
-          fi
-
   integration:
-    needs: integration-gate
-    if: needs.integration-gate.outputs.enabled == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 120
     defaults:
@@ -104,7 +84,6 @@ jobs:
         with:
           repository: gimhq/gim-hub
           ref: ${{ steps.hub.outputs.rev }}
-          ssh-key: ${{ secrets.GIM_HUB_DEPLOY_KEY }}
           persist-credentials: false
           path: gim-hub
       - name: Free disk space
