@@ -196,6 +196,7 @@ mod tests {
             user_id: uid(id),
             handle: handle.into(),
             display_name: handle.to_uppercase(),
+            avatar: None,
         }
     }
 

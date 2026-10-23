@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 
 use gim_base::model::{MediaCacheEntry, MessageContent, OutboxKind, PendingMedia};
 use gim_base::{BaseError, StateStore, StoreTxn};
-use gim_common::{now_ms, GroupId, MessageId};
+use gim_common::{now_ms, GroupId, MessageId, UserId};
 use gim_crypto::{
     MediaDecryptor, MediaEncryptor, MediaError, MAX_CHUNK_SIZE, MEDIA_HEADER_LEN, MEDIA_MAGIC,
 };
@@ -92,7 +92,47 @@ impl<S: StateStore + 'static> Client<S> {
     ) -> Result<()> {
         self.require_session()?;
         let media = self.media_of(group_id, message_id).await?;
-        let dest = dest.as_ref().to_path_buf();
+        self.fetch_into(media, dest.as_ref()).await
+    }
+
+    /// Like [`Client::fetch_media`] for the profile photo of `user_id` (this
+    /// user included). `NotFound` if they have none.
+    pub async fn fetch_user_avatar(&self, user_id: &UserId, dest: impl AsRef<Path>) -> Result<()> {
+        self.require_session()?;
+        let id = user_id.clone();
+        let media = self
+            .run(move |store, _| {
+                store
+                    .user(&id)?
+                    .and_then(|user| user.avatar)
+                    .ok_or_else(|| BaseError::NotFound(format!("profile photo of {id}")))
+            })
+            .await?;
+        self.fetch_into(media, dest.as_ref()).await
+    }
+
+    /// Like [`Client::fetch_media`] for the avatar of a group chat.
+    /// `NotFound` if it has none.
+    pub async fn fetch_chat_avatar(
+        &self,
+        group_id: &GroupId,
+        dest: impl AsRef<Path>,
+    ) -> Result<()> {
+        self.require_session()?;
+        let gid = group_id.clone();
+        let media = self
+            .run(move |store, _| {
+                store
+                    .chat(&gid)?
+                    .and_then(|chat| chat.avatar)
+                    .ok_or_else(|| BaseError::NotFound(format!("avatar of chat {gid}")))
+            })
+            .await?;
+        self.fetch_into(media, dest.as_ref()).await
+    }
+
+    async fn fetch_into(&self, media: MediaInfo, dest: &Path) -> Result<()> {
+        let dest = dest.to_path_buf();
         let dest_str = dest
             .to_str()
             .ok_or_else(|| ClientError::InvalidInput("path is not UTF-8".into()))?

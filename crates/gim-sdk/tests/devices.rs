@@ -1,19 +1,19 @@
-//! Device linking, recovery restore, device management, the self group and
-//! profiles against one fake hub.
+//! Device linking, recovery restore, device management, the self group,
+//! profiles, privacy and chat settings against one fake hub.
 
 use std::path::Path;
 use std::sync::Arc;
 
-use gim_base::model::{Membership, Message, MessageContent};
-use gim_base::{MemoryStore, StateReader};
+use gim_base::model::{Membership, Message, MessageContent, StateChange};
+use gim_base::{BaseError, MemoryStore, StateReader};
 use gim_common::{DeviceRef, GroupId, UserId};
 use gim_identity::link::LinkOffer;
 use gim_identity::recovery::RecoveryCode;
-use gim_proto::envelope::Content;
+use gim_proto::envelope::{Content, ReceiptKind};
 use gim_sdk::testing::{FakeTransport, MemorySecretStorage};
 use gim_sdk::{
     Client, ClientBuilder, ClientError, LinkSession, PendingApproval, SecretStorage,
-    DEVICE_KEY_SECRET_KEY, ROOT_KEY_SECRET_KEY, SESSION_SECRET_KEY,
+    DEVICE_KEY_SECRET_KEY, MUTED_FOREVER, ROOT_KEY_SECRET_KEY, SESSION_SECRET_KEY,
 };
 use tempfile::TempDir;
 
@@ -445,4 +445,172 @@ async fn profile_is_announced_on_join() {
     alice.sync().await;
     assert_eq!(carol.display_name(&alice.user_id()), "ALICE");
     assert_eq!(alice.display_name(&carol.user_id()), "Carol at sea");
+}
+
+#[tokio::test]
+async fn privacy_and_chat_settings_follow_the_own_devices() {
+    let transport = FakeTransport::new();
+    let (alice, _) = Device::register(&transport, "alice").await;
+    alice.client.set_read_receipts(false).await.unwrap();
+    // Settings made before a device is linked reach it with the link.
+    let tablet = Device::link(&transport, &alice).await;
+    tablet.sync().await;
+    assert!(!tablet.client.privacy().await.unwrap().read_receipts);
+
+    let (bob, _) = Device::register(&transport, "bob").await;
+    let g = bob
+        .client
+        .create_direct_chat(&alice.user_id())
+        .await
+        .unwrap();
+    alice.sync().await;
+    tablet.sync().await;
+    alice.client.set_chat_pinned(&g, true).await.unwrap();
+    alice
+        .client
+        .set_chat_muted(&g, MUTED_FOREVER)
+        .await
+        .unwrap();
+    alice.client.set_typing_indicators(false).await.unwrap();
+    tablet.sync().await;
+    let chat = tablet.store.chat(&g).unwrap().unwrap();
+    assert!(chat.pinned && !chat.archived);
+    assert_eq!(chat.muted_until_ms, MUTED_FOREVER);
+    let privacy = tablet.client.privacy().await.unwrap();
+    assert!(!privacy.read_receipts && !privacy.typing);
+
+    // The latest change wins, from either device.
+    tablet.client.set_chat_archived(&g, true).await.unwrap();
+    tablet.client.set_chat_muted(&g, 0).await.unwrap();
+    alice.sync().await;
+    let chat = alice.store.chat(&g).unwrap().unwrap();
+    assert!(chat.pinned && chat.archived);
+    assert_eq!(chat.muted_until_ms, 0);
+}
+
+#[tokio::test]
+async fn nothing_reaches_the_chat_while_receipts_and_typing_are_off() {
+    let transport = FakeTransport::new();
+    let (alice, _) = Device::register(&transport, "alice").await;
+    let (bob, _) = Device::register(&transport, "bob").await;
+    let g = bob
+        .client
+        .create_direct_chat(&alice.user_id())
+        .await
+        .unwrap();
+    alice.sync().await;
+    alice.client.set_read_receipts(false).await.unwrap();
+    alice.client.set_typing_indicators(false).await.unwrap();
+
+    bob.send_text(&g, "hi").await;
+    alice.sync().await;
+    alice.client.mark_read(&g).await.unwrap();
+    alice.client.set_typing(&g, true).await.unwrap();
+    assert_eq!(alice.store.chat(&g).unwrap().unwrap().unread_count, 0);
+    let changes = bob.client.sync_once().await.unwrap();
+    assert!(!changes
+        .iter()
+        .any(|c| matches!(c, StateChange::Typing { .. })));
+    let sent = bob.store.messages(&g, None, usize::MAX).unwrap();
+    assert!(sent
+        .iter()
+        .all(|m| m.receipts.get(&alice.device()) != Some(&ReceiptKind::Read)));
+}
+
+#[tokio::test]
+async fn a_blocked_user_cannot_reach_the_user() {
+    let transport = FakeTransport::new();
+    let (alice, _) = Device::register(&transport, "alice").await;
+    let (bob, _) = Device::register(&transport, "bob").await;
+    let g = bob
+        .client
+        .create_direct_chat(&alice.user_id())
+        .await
+        .unwrap();
+    alice.sync().await;
+    bob.send_text(&g, "before").await;
+    alice.sync().await;
+
+    alice.client.block_user(&bob.user_id()).await.unwrap();
+    bob.send_text(&g, "after").await;
+    alice.sync().await;
+    assert_eq!(alice.texts(&g), ["before"]);
+    // No new chat with bob, from either side.
+    assert!(matches!(
+        alice.client.create_group_chat(None, &[bob.user_id()]).await,
+        Err(ClientError::InvalidInput(_))
+    ));
+    let invite = bob
+        .client
+        .create_group_chat(Some("Trap".into()), &[alice.user_id()])
+        .await
+        .unwrap();
+    alice.sync().await;
+    assert_eq!(alice.store.chat(&invite).unwrap(), None);
+    assert!(matches!(
+        alice.client.block_user(&alice.user_id()).await,
+        Err(ClientError::InvalidInput(_))
+    ));
+
+    alice.client.unblock_user(&bob.user_id()).await.unwrap();
+    bob.send_text(&g, "again").await;
+    alice.sync().await;
+    assert_eq!(alice.texts(&g), ["before", "again"]);
+}
+
+#[tokio::test]
+async fn a_profile_photo_reaches_the_own_devices_and_the_chats() {
+    let transport = FakeTransport::new();
+    let (alice, _) = Device::register(&transport, "alice").await;
+    let tablet = Device::link(&transport, &alice).await;
+    let (bob, _) = Device::register(&transport, "bob").await;
+    bob.client
+        .create_direct_chat(&alice.user_id())
+        .await
+        .unwrap();
+    alice.sync().await;
+    tablet.sync().await;
+
+    let dir = tempfile::tempdir().unwrap();
+    let photo = dir.path().join("me.jpg");
+    std::fs::write(&photo, b"not really a jpeg").unwrap();
+    alice
+        .client
+        .set_avatar(Some((photo.clone(), "image/jpeg".into())))
+        .await
+        .unwrap();
+    tablet.sync().await;
+    bob.sync().await;
+    for device in [&tablet, &bob] {
+        let avatar = device.store.user(&alice.user_id()).unwrap().unwrap().avatar;
+        assert_eq!(avatar.unwrap().mime, "image/jpeg");
+    }
+    let fetched = dir.path().join("fetched.jpg");
+    bob.client
+        .fetch_user_avatar(&alice.user_id(), &fetched)
+        .await
+        .unwrap();
+    assert_eq!(std::fs::read(&fetched).unwrap(), b"not really a jpeg");
+    // A later name change keeps the photo.
+    alice.client.set_display_name("Al").await.unwrap();
+    bob.sync().await;
+    let user = bob.store.user(&alice.user_id()).unwrap().unwrap();
+    assert_eq!(user.display_name, "Al");
+    assert!(user.avatar.is_some());
+
+    alice.client.set_avatar(None).await.unwrap();
+    tablet.sync().await;
+    bob.sync().await;
+    for device in [&tablet, &bob] {
+        assert_eq!(
+            device.store.user(&alice.user_id()).unwrap().unwrap().avatar,
+            None
+        );
+    }
+    assert!(matches!(
+        bob.client
+            .fetch_user_avatar(&alice.user_id(), &fetched)
+            .await,
+        Err(ClientError::Base(BaseError::NotFound(_)))
+    ));
 }

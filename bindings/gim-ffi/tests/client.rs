@@ -1307,3 +1307,45 @@ async fn a_rotated_recovery_code_restores_and_the_old_one_does_not() {
         .unwrap();
     assert_eq!(fresh.user_id(), Some(user_id));
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn privacy_and_chat_settings_round_trip() {
+    let transport = FakeTransport::new();
+    let alice = open(&transport, &MemoryHooks::new()).await;
+    alice.create_identity("Alice".to_string()).await.unwrap();
+    let bob = open(&transport, &MemoryHooks::new()).await;
+    bob.create_identity("Bob".to_string()).await.unwrap();
+    let bob_id = bob.user_id().unwrap();
+    let chat = alice.create_direct_chat(bob_id.clone()).await.unwrap();
+
+    let privacy = alice.privacy().await.unwrap();
+    assert!(privacy.read_receipts && privacy.typing_indicators);
+    assert!(privacy.blocked_user_ids.is_empty());
+    alice.set_read_receipts(false).await.unwrap();
+    alice.set_typing_indicators(false).await.unwrap();
+    alice.block_user(bob_id.clone()).await.unwrap();
+    let privacy = alice.privacy().await.unwrap();
+    assert!(!privacy.read_receipts && !privacy.typing_indicators);
+    assert_eq!(privacy.blocked_user_ids, std::slice::from_ref(&bob_id));
+    assert!(matches!(
+        alice
+            .create_group_chat("Crew".to_string(), vec![bob_id.clone()])
+            .await,
+        Err(GimError::InvalidInput { .. })
+    ));
+    alice.unblock_user(bob_id).await.unwrap();
+
+    alice
+        .set_chat_muted(chat.clone(), gim_core::muted_forever())
+        .await
+        .unwrap();
+    alice.set_chat_pinned(chat.clone(), true).await.unwrap();
+    alice.set_chat_archived(chat.clone(), true).await.unwrap();
+    assert!(matches!(
+        alice.set_chat_pinned("unknown".to_string(), true).await,
+        Err(GimError::NotFound { .. })
+    ));
+    let profile = alice.own_profile().await.unwrap().unwrap();
+    assert_eq!(profile.display_name, "Alice");
+    assert!(!profile.has_avatar);
+}

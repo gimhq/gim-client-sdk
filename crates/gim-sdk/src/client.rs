@@ -713,7 +713,8 @@ impl<S: StateStore + 'static> Client<S> {
     /// other devices), and announces the own display name in it. Fails with
     /// `NotFound` (and creates nothing) if `user_id` does not exist or has
     /// no device, [`ClientError::ContactNotAdmitted`] if their hub does not
-    /// admit this user; a user whose hub is unavailable is added later.
+    /// admit this user, `InvalidInput` if they are blocked; a user whose hub
+    /// is unavailable is added later.
     pub async fn create_direct_chat(&self, user_id: &UserId) -> Result<GroupId> {
         self.create_chat(ChatKind::Direct, None, std::slice::from_ref(user_id))
             .await
@@ -741,6 +742,7 @@ impl<S: StateStore + 'static> Client<S> {
     /// skipped like in [`Client::create_group_chat`], with the same errors
     /// if that is every user.
     pub async fn add_members(&self, group_id: &GroupId, users: &[UserId]) -> Result<()> {
+        self.refuse_blocked(users).await?;
         self.add_members_locked(group_id, users).await?;
         self.share_group_info(group_id).await?;
         self.announce_profile(group_id).await;
@@ -963,6 +965,7 @@ impl<S: StateStore + 'static> Client<S> {
         users: &[UserId],
     ) -> Result<GroupId> {
         let session = self.require_session()?;
+        self.refuse_blocked(users).await?;
         let (group_id, added) = self.create_chat_locked(&session, kind, name, users).await?;
         if added && kind == ChatKind::Group {
             self.share_group_info(&group_id).await?;
@@ -2062,7 +2065,7 @@ impl<S: StateStore + 'static> Client<S> {
                 | StateChange::Typing { group_id, .. } => group_id,
                 StateChange::MessageUpserted(message) => &message.group_id,
                 StateChange::MembershipChanged(event) => &event.group_id,
-                StateChange::KeyPackagesLow => return true,
+                StateChange::KeyPackagesLow | StateChange::PrivacyChanged(_) => return true,
             };
             !hidden.contains(group_id)
         });

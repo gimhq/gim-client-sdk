@@ -20,7 +20,8 @@ use std::time::Duration;
 
 use gim_base::model::{
     Chat, DepartedMember, GroupCursor, GroupMessage, HubRecord, KeyPackageRecord, MediaCacheEntry,
-    MembershipEvent, Message, OutboxEntry, PendingCommit, PendingInvite, PendingLeave, UserInfo,
+    MembershipEvent, Message, OutboxEntry, PendingCommit, PendingInvite, PendingLeave, Privacy,
+    UserInfo,
 };
 use gim_base::{BaseError, StateReader, StateStore, StoreError, StoreTxn, WriteTarget};
 use gim_common::{DeviceRef, GroupId, MessageId, UserId};
@@ -33,8 +34,8 @@ pub use migrations::{APPLICATION_ID, SCHEMA_VERSION};
 
 use reader::{bound, hub_state_str, membership_kind_str, outbox_state_str, sql_err, Reader};
 use rows::{
-    encode, ChatData, MemberRow, MessageData, OutboxData, OutboxKindRow, ParkedData,
-    PendingCommitData, PendingLeaveData,
+    encode, ChatData, MediaRow, MemberRow, MessageData, OutboxData, OutboxKindRow, ParkedData,
+    PendingCommitData, PendingLeaveData, PrivacyData,
 };
 
 type StoreResult<T> = Result<T, StoreError>;
@@ -440,6 +441,11 @@ macro_rules! delegate_reader {
                 Reader($conn).user(user_id)
             }
 
+            fn privacy(&self) -> StoreResult<Privacy> {
+                let $this = self;
+                Reader($conn).privacy()
+            }
+
             fn pending_commit(&self, group_id: &GroupId) -> StoreResult<Option<PendingCommit>> {
                 let $this = self;
                 Reader($conn).pending_commit(group_id)
@@ -514,6 +520,10 @@ impl StoreTxn for SqliteTxn<'_> {
             last_seq: chat.last_seq,
             last_read_seq: chat.last_read_seq,
             membership: chat.membership.into(),
+            muted_until_ms: chat.muted_until_ms,
+            pinned: chat.pinned,
+            archived: chat.archived,
+            settings_at_ms: chat.settings_at_ms,
         })?;
         self.execute(
             "INSERT OR REPLACE INTO chats (group_id, updated_at_ms, data) VALUES (?1, ?2, ?3)",
@@ -681,9 +691,33 @@ impl StoreTxn for SqliteTxn<'_> {
     }
 
     fn upsert_user(&mut self, user: &UserInfo) -> StoreResult<()> {
+        let avatar = user
+            .avatar
+            .as_ref()
+            .map(|a| encode(&MediaRow::from(a)))
+            .transpose()?;
         self.execute(
-            "INSERT OR REPLACE INTO users (user_id, handle, display_name) VALUES (?1, ?2, ?3)",
-            params![user.user_id.as_str(), user.handle, user.display_name],
+            "INSERT OR REPLACE INTO users (user_id, handle, display_name, avatar) \
+             VALUES (?1, ?2, ?3, ?4)",
+            params![
+                user.user_id.as_str(),
+                user.handle,
+                user.display_name,
+                avatar
+            ],
+        )
+    }
+
+    fn set_privacy(&mut self, privacy: &Privacy) -> StoreResult<()> {
+        let data = encode(&PrivacyData {
+            read_receipts: privacy.read_receipts,
+            typing: privacy.typing,
+            blocked: privacy.blocked.iter().cloned().collect(),
+            updated_at_ms: privacy.updated_at_ms,
+        })?;
+        self.execute(
+            "INSERT OR REPLACE INTO privacy (id, data) VALUES (1, ?1)",
+            params![data],
         )
     }
 

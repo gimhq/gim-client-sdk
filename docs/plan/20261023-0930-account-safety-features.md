@@ -39,9 +39,19 @@ Design rules (user, 2026-10-23):
 Phase A (gim-core + SDK, no server change):
 
 1. Recovery key rotation (SDK only) — done.
-2. Privacy switches and block list, synced through the self group.
-3. Mute, pin, archive, synced through the self group.
-4. Own profile photo.
+2. Privacy switches and block list, synced through the self group — done
+   (core `e13dbf8`, `dd9ac44`: `self.privacy`; no read receipt is sent
+   while they are off).
+3. Mute, pin, archive, synced through the self group — done (core
+   `self.chat_settings`; store migration 0008; pinned first in the chat
+   list; muted chats push with `should_display = false`).
+4. Own profile photo — done (`set_avatar`, `fetch_user_avatar`,
+   `fetch_chat_avatar`, `ChatSummary.peer`).
+
+Phase A findings: direct chats with a blocked user stay listed with
+`ChatSummary.blocked` (as in Signal) instead of being hidden, so the user
+can unblock from the chat; archive is a flag only, a new message does not
+unarchive.
 
 Phase B (servers):
 

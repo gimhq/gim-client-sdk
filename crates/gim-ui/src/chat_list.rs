@@ -1,4 +1,5 @@
-//! The chat list: every chat, most recently updated first.
+//! The chat list: every chat, pinned ones first, then most recently updated
+//! first.
 
 use std::cmp::Reverse;
 use std::collections::BTreeSet;
@@ -113,9 +114,17 @@ impl State {
                 StateChange::MessageRemoved { group_id, .. } => Some(group_id),
                 StateChange::Typing { .. }
                 | StateChange::MembershipChanged(_)
-                | StateChange::KeyPackagesLow => None,
+                | StateChange::KeyPackagesLow
+                | StateChange::PrivacyChanged(_) => None,
             })
             .collect();
+        // Blocking or unblocking marks direct chats.
+        if changes
+            .iter()
+            .any(|c| matches!(c, StateChange::PrivacyChanged(_)))
+        {
+            return self.reload(store);
+        }
         if touched.is_empty() {
             return Ok(());
         }
@@ -138,18 +147,67 @@ impl State {
 
 fn sort(items: &mut [ChatListItem]) {
     items.sort_by(|a, b| {
-        (Reverse(a.updated_at_ms), &a.chat_id).cmp(&(Reverse(b.updated_at_ms), &b.chat_id))
+        (!a.pinned, Reverse(a.updated_at_ms), &a.chat_id).cmp(&(
+            !b.pinned,
+            Reverse(b.updated_at_ms),
+            &b.chat_id,
+        ))
     });
 }
 
 #[cfg(test)]
 mod tests {
     use futures_util::FutureExt;
-    use gim_base::model::{Chat, ChatKind, Membership};
+    use gim_base::model::{Chat, ChatKind, ChatMember, Membership, Privacy};
     use gim_base::{MemoryStore, StoreTxn};
+    use gim_common::{DeviceId, DeviceRef};
 
     use super::*;
     use crate::ChatState;
+
+    /// Pinned chats come first; blocking the peer of a direct chat marks
+    /// it.
+    #[test]
+    fn pinned_chats_lead_and_blocked_peers_are_marked() {
+        let store = MemoryStore::new();
+        let (alice, bob) = (UserId::new("alice").unwrap(), UserId::new("bob").unwrap());
+        let mut dm = Chat::new(GroupId::new("dm").unwrap(), ChatKind::Direct, 1);
+        dm.members = [&alice, &bob]
+            .map(|user| ChatMember {
+                device: DeviceRef::new(user.clone(), DeviceId::new("phone").unwrap()),
+                display_name: None,
+            })
+            .to_vec();
+        dm.pinned = true;
+        let newer = Chat::new(GroupId::new("newer").unwrap(), ChatKind::Group, 2);
+        store
+            .transaction(|txn| {
+                txn.upsert_chat(&dm)?;
+                Ok(txn.upsert_chat(&newer)?)
+            })
+            .unwrap();
+        let mut state = State {
+            own: alice,
+            items: ObservableVector::new(),
+        };
+        state.reload(&store).unwrap();
+        let ids: Vec<&str> = state.items.iter().map(|i| i.chat_id.as_str()).collect();
+        assert_eq!(ids, ["dm", "newer"]);
+        assert_eq!(state.items[0].peer.as_ref().unwrap().user_id, bob);
+        assert!(!state.items[0].blocked);
+
+        let privacy = Privacy {
+            blocked: [bob].into(),
+            ..Privacy::default()
+        };
+        store
+            .transaction(|txn| Ok(txn.set_privacy(&privacy)?))
+            .unwrap();
+        state
+            .apply(&store, &[StateChange::PrivacyChanged(privacy)])
+            .unwrap();
+        assert!(state.items[0].blocked);
+    }
 
     /// Each membership change of a chat is a `Set` of its row: leaving,
     /// back to active after a refused leave, leaving again, left.

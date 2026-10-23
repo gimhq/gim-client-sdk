@@ -312,6 +312,43 @@ async fn pushed_message_is_applied_once_whoever_delivers_it_first() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_muted_chat_shows_no_notification() {
+    let hub = FakeTransport::new();
+    let (alice, bob, group_id) = direct_chat(&hub).await;
+    let now = gim_common::now_ms();
+    alice
+        .client
+        .set_chat_muted(&group_id, now + 3_600_000)
+        .await
+        .unwrap();
+
+    bob.send_text(&group_id, "Quiet please").await;
+    let delivered = latest(&hub, &group_id, MessageKind::Application);
+    let content = alice
+        .client
+        .process_push(&message_payload(&delivered, true))
+        .await
+        .unwrap();
+    assert_eq!(content.body, "Quiet please");
+    assert!(!content.should_display);
+
+    // A mute that ended shows notifications again.
+    alice
+        .client
+        .set_chat_muted(&group_id, now - 1)
+        .await
+        .unwrap();
+    bob.send_text(&group_id, "Loud again").await;
+    let delivered = latest(&hub, &group_id, MessageKind::Application);
+    let content = alice
+        .client
+        .process_push(&message_payload(&delivered, true))
+        .await
+        .unwrap();
+    assert!(content.should_display);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn message_without_inline_bytes_is_fetched_by_seq_over_http() {
     let hub = FakeTransport::new();
     let server = MockServer::start(hub.clone()).await;

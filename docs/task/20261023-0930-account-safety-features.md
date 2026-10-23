@@ -26,3 +26,7 @@ Adding account and safety features to the SDK
   `rotateRecoveryCode()` with 6 new tests; fmt, clippy, 392 tests and
   bindings regeneration pass. Plan revised: client-side blocking, no hub
   state except account deletion, a separate encrypted app server.
+- 2026-10-23: Phase A done: privacy switches, blocking, mute/pin/archive
+  and profile photos (core `dd9ac44`, SQLite migration 0008, gim-ui chat
+  list fields, FFI, `docs/API.md`). Phase B (app server, reports, account
+  deletion) next.

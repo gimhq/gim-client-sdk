@@ -455,7 +455,7 @@ pub fn message_line(m: &MessageOut) -> String {
 }
 
 /// The `listen` line of a change; `None` for changes that are not printed
-/// (`KeyPackagesLow`). `last` is the last message of an upserted chat.
+/// (`KeyPackagesLow`, `PrivacyChanged`). `last` is the last message of an upserted chat.
 pub fn event_output(
     change: &StateChange,
     me: &UserId,
@@ -529,7 +529,7 @@ pub fn event_output(
             });
             (json, human)
         }
-        StateChange::KeyPackagesLow => return None,
+        StateChange::KeyPackagesLow | StateChange::PrivacyChanged(_) => return None,
     };
     Some(Output { json, human })
 }
@@ -582,11 +582,13 @@ mod tests {
                 user_id: UserId::new("u-alice").unwrap(),
                 handle: "alice".into(),
                 display_name: "Alice".into(),
+                avatar: None,
             },
             UserInfo {
                 user_id: UserId::new("u-bob").unwrap(),
                 handle: "bob".into(),
                 display_name: "Bob".into(),
+                avatar: None,
             },
         ]);
         let out = message_out(&message(), &directory);
@@ -621,6 +623,7 @@ mod tests {
             user_id: UserId::new("u-bob").unwrap(),
             handle: "bob".into(),
             display_name: "Bob".into(),
+            avatar: None,
         }]);
         let me = UserId::new("u-alice").unwrap();
         let out = event_output(change, &me, &directory, None).unwrap();

@@ -29,6 +29,7 @@ fn alice() -> UserInfo {
         user_id: UserId::new("alice").unwrap(),
         handle: "alice".into(),
         display_name: "Alice".into(),
+        avatar: None,
     }
 }
 

@@ -707,7 +707,7 @@ impl<S: StateStore + 'static> Client<S> {
     ) -> Result<NotificationContent> {
         let push = Push::parse(payload)?;
         let failure = match tokio::time::timeout(timeout, self.handle_push(&push)).await {
-            Ok(Ok(content)) => return Ok(content),
+            Ok(Ok(content)) => return Ok(self.silence_muted(content).await),
             Ok(Err(err)) => err.to_string(),
             Err(_) => format!("not done within {timeout:?}"),
         };
@@ -717,7 +717,24 @@ impl<S: StateStore + 'static> Client<S> {
             PushKind::Membership { group_id, seq } => self.joined_at(group_id, *seq).await,
             _ => true,
         };
-        Ok(self.generic(&push, display).await)
+        let content = self.generic(&push, display).await;
+        Ok(self.silence_muted(content).await)
+    }
+
+    /// `content`, not displayed if its chat is muted.
+    async fn silence_muted(&self, mut content: NotificationContent) -> NotificationContent {
+        if let Some(group_id) = content.chat_id.clone() {
+            let muted = self
+                .read(move |store, _| Ok(store.chat(&group_id)?))
+                .await
+                .ok()
+                .flatten()
+                .is_some_and(|chat| chat.is_muted(now_ms()));
+            if muted {
+                content.should_display = false;
+            }
+        }
+        content
     }
 
     /// Whether this device is in `group_id`, added by the Commit at `seq`.

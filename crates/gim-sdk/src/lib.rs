@@ -29,6 +29,7 @@ mod routing;
 mod secrets;
 mod self_group;
 mod send;
+mod settings;
 mod store_lock;
 pub mod stream;
 mod sync;
@@ -61,6 +62,7 @@ pub use push::{
 pub use secrets::{SecretStorage, SecretStorageError};
 pub use self_group::DeviceInfo;
 pub use send::TYPING_INTERVAL;
+pub use settings::MUTED_FOREVER;
 pub use store_lock::{StoreLock, StoreLockGuard, DEFAULT_STORE_LOCK_TIMEOUT, LOCK_FILE_NAME};
 pub use stream::ConnectionState;
 pub use sync::{SyncSettings, BACKFILL_PAGE};

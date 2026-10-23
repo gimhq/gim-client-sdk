@@ -65,6 +65,7 @@ impl From<gim_ui::UserProfile> for UserProfile {
             user_id: p.user_id.into(),
             handle: p.handle,
             display_name: p.display_name,
+            has_avatar: p.has_avatar,
         }
     }
 }
@@ -75,6 +76,7 @@ impl From<gim_base::model::UserInfo> for UserProfile {
             user_id: u.user_id.into(),
             handle: u.handle,
             display_name: u.display_name,
+            has_avatar: u.avatar.is_some(),
         }
     }
 }
@@ -111,6 +113,11 @@ impl From<gim_ui::ChatListItem> for ChatSummary {
             updated_at_ms: c.updated_at_ms,
             member_count: c.member_count,
             state: c.state.into(),
+            peer: c.peer.map(Into::into),
+            muted_until_ms: c.muted_until_ms,
+            pinned: c.pinned,
+            archived: c.archived,
+            blocked: c.blocked,
         }
     }
 }

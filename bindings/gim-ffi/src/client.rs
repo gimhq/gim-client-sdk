@@ -28,7 +28,8 @@ use crate::timeline::PlatformTimeZone;
 use crate::{
     ChatListDiff, ChatListListener, ChatState, ConnectionState, DeviceInfo, GimError, HubInfo,
     LinkSession, LocalTimeZone, NotificationContent, PendingApproval, PlatformHooks,
-    PushRegistration, RecoveryRotation, Session, TaskHandle, Timeline, UserProfile,
+    PrivacySettings, PushRegistration, RecoveryRotation, Session, TaskHandle, Timeline,
+    UserProfile,
 };
 
 type Sdk = Client<SqliteStore>;
@@ -405,6 +406,7 @@ fn member_profiles(store: &SqliteStore, group_id: &GroupId) -> Result<Vec<UserPr
                 user_id: user_id.to_string(),
                 handle: user_id.to_string(),
                 display_name: member.display_name.unwrap_or_else(|| user_id.to_string()),
+                has_avatar: false,
             },
         });
     }
@@ -701,6 +703,110 @@ impl GimClient {
     /// devices and announced to every joined chat.
     pub async fn set_display_name(&self, name: String) -> Result<(), GimError> {
         Ok(self.sdk()?.set_display_name(&name).await?)
+    }
+
+    /// The signed-in user's own profile; `None` before it is stored.
+    pub async fn own_profile(&self) -> Result<Option<UserProfile>, GimError> {
+        let own = self.own_user()?;
+        let user = self.read(move |store| Ok(store.user(&own)?)).await?;
+        Ok(user.map(Into::into))
+    }
+
+    /// Sets the signed-in user's profile photo from an image file (crop and
+    /// scale it first: every chat member downloads it); synced and announced
+    /// like `set_display_name`.
+    pub async fn set_avatar(&self, file_path: String, mime: String) -> Result<(), GimError> {
+        Ok(self
+            .sdk()?
+            .set_avatar(Some((PathBuf::from(file_path), mime)))
+            .await?)
+    }
+
+    /// Removes the signed-in user's profile photo.
+    pub async fn remove_avatar(&self) -> Result<(), GimError> {
+        Ok(self.sdk()?.set_avatar(None).await?)
+    }
+
+    /// Downloads and decrypts the profile photo of `user_id` (the own user
+    /// included) to `dest_path` and returns the path; `NotFound` if they
+    /// have none.
+    pub async fn fetch_user_avatar(
+        &self,
+        user_id: String,
+        dest_path: String,
+    ) -> Result<String, GimError> {
+        let user_id: UserId = parse_id("user_id", user_id)?;
+        self.sdk()?.fetch_user_avatar(&user_id, &dest_path).await?;
+        Ok(dest_path)
+    }
+
+    /// Downloads and decrypts the avatar of a group chat to `dest_path` and
+    /// returns the path; `NotFound` if it has none.
+    pub async fn fetch_chat_avatar(
+        &self,
+        chat_id: String,
+        dest_path: String,
+    ) -> Result<String, GimError> {
+        let group_id: GroupId = parse_id("chat_id", chat_id)?;
+        self.sdk()?.fetch_chat_avatar(&group_id, &dest_path).await?;
+        Ok(dest_path)
+    }
+
+    /// The privacy settings.
+    pub async fn privacy(&self) -> Result<PrivacySettings, GimError> {
+        let privacy = self.sdk()?.privacy().await?;
+        Ok(PrivacySettings {
+            read_receipts: privacy.read_receipts,
+            typing_indicators: privacy.typing,
+            blocked_user_ids: privacy.blocked.into_iter().map(String::from).collect(),
+        })
+    }
+
+    /// Turns sending (and showing) read receipts on or off.
+    pub async fn set_read_receipts(&self, enabled: bool) -> Result<(), GimError> {
+        Ok(self.sdk()?.set_read_receipts(enabled).await?)
+    }
+
+    /// Turns sending (and showing) typing indicators on or off.
+    pub async fn set_typing_indicators(&self, enabled: bool) -> Result<(), GimError> {
+        Ok(self.sdk()?.set_typing_indicators(enabled).await?)
+    }
+
+    /// Blocks a user: their messages and invites are dropped and no chat
+    /// can be created with them or add them (`InvalidInput`). Existing
+    /// chats stay; a direct chat shows `blocked`.
+    pub async fn block_user(&self, user_id: String) -> Result<(), GimError> {
+        let user_id: UserId = parse_id("user_id", user_id)?;
+        Ok(self.sdk()?.block_user(&user_id).await?)
+    }
+
+    pub async fn unblock_user(&self, user_id: String) -> Result<(), GimError> {
+        let user_id: UserId = parse_id("user_id", user_id)?;
+        Ok(self.sdk()?.unblock_user(&user_id).await?)
+    }
+
+    /// Mutes a chat's notifications until `muted_until_ms` (Unix
+    /// milliseconds; `muted_forever()` for good, 0 to unmute).
+    pub async fn set_chat_muted(
+        &self,
+        chat_id: String,
+        muted_until_ms: u64,
+    ) -> Result<(), GimError> {
+        let group_id: GroupId = parse_id("chat_id", chat_id)?;
+        Ok(self
+            .sdk()?
+            .set_chat_muted(&group_id, muted_until_ms)
+            .await?)
+    }
+
+    pub async fn set_chat_pinned(&self, chat_id: String, pinned: bool) -> Result<(), GimError> {
+        let group_id: GroupId = parse_id("chat_id", chat_id)?;
+        Ok(self.sdk()?.set_chat_pinned(&group_id, pinned).await?)
+    }
+
+    pub async fn set_chat_archived(&self, chat_id: String, archived: bool) -> Result<(), GimError> {
+        let group_id: GroupId = parse_id("chat_id", chat_id)?;
+        Ok(self.sdk()?.set_chat_archived(&group_id, archived).await?)
     }
 
     /// Claims `handle` in the hub directory, so others find the user with

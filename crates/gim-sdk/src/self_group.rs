@@ -5,12 +5,14 @@
 //! its self group when the first `self.*` content of another own device
 //! arrives in it.
 //!
-//! Also: the display name announced to chats (`profile` content, on join
-//! and on change) and device management (list, revoke).
+//! Also: the display name and profile photo announced to chats (`profile`
+//! content, on join and on change) and device management (list, revoke).
+
+use std::path::PathBuf;
 
 use gim_base::model::ChatKind;
-use gim_base::model::{Membership, UserInfo};
-use gim_base::{BaseClient, StateReader, StateStore, StoreTxn};
+use gim_base::model::{Membership, PendingMedia, UserInfo};
+use gim_base::{new_message_id, BaseClient, StateReader, StateStore, StoreTxn};
 use gim_common::{now_ms, DeviceId, DeviceRef, GroupId, UserId};
 use gim_identity::{DeviceList, RootKey, SignedDeviceList};
 use gim_proto::envelope::{Contact, Content};
@@ -56,24 +58,13 @@ impl<S: StateStore + 'static> Client<S> {
     /// own devices through the self group and announced to every joined
     /// chat.
     pub async fn set_display_name(&self, display_name: &str) -> Result<()> {
-        let session = self.require_session()?;
+        self.require_session()?;
         if display_name.is_empty() {
             return Err(ClientError::InvalidInput("empty display name".into()));
         }
         let name = display_name.to_string();
-        let own = session.device.user_id.clone();
-        self.run(move |store, _| {
-            store.transaction(|txn| {
-                let mut user = txn.user(&own)?.unwrap_or_else(|| UserInfo {
-                    user_id: own.clone(),
-                    handle: String::new(),
-                    display_name: String::new(),
-                });
-                user.display_name = name;
-                Ok(txn.upsert_user(&user)?)
-            })
-        })
-        .await?;
+        self.update_own_user(move |user| user.display_name = name)
+            .await?;
         self.authed(|t| async move {
             self.inner
                 .transport
@@ -81,10 +72,70 @@ impl<S: StateStore + 'static> Client<S> {
                 .await
         })
         .await?;
-        self.send_to_self_group(Content::SelfProfile {
-            display_name: display_name.to_string(),
+        self.publish_profile().await
+    }
+
+    /// Sets the user's profile photo from an image file (path, MIME type),
+    /// or removes it with `None`. The app crops and scales the image first:
+    /// every member of every chat downloads it. The file is encrypted and
+    /// uploaded, then the photo is synced and announced like
+    /// [`Client::set_display_name`].
+    pub async fn set_avatar(&self, photo: Option<(PathBuf, String)>) -> Result<()> {
+        self.require_session()?;
+        let avatar = match photo {
+            Some((path, mime)) => {
+                let local_path = path
+                    .to_str()
+                    .ok_or_else(|| ClientError::InvalidInput("path is not UTF-8".into()))?
+                    .to_string();
+                let pending = PendingMedia {
+                    local_path,
+                    mime,
+                    caption: None,
+                };
+                Some(self.upload_media(&new_message_id()?, pending).await?)
+            }
+            None => None,
+        };
+        self.update_own_user(move |user| user.avatar = avatar)
+            .await?;
+        self.publish_profile().await
+    }
+
+    async fn update_own_user(
+        &self,
+        change: impl FnOnce(&mut UserInfo) + Send + 'static,
+    ) -> Result<()> {
+        let session = self.require_session()?;
+        let own = session.device.user_id.clone();
+        self.run(move |store, _| {
+            store.transaction(|txn| {
+                let mut user = txn.user(&own)?.unwrap_or_else(|| UserInfo {
+                    user_id: own.clone(),
+                    handle: String::new(),
+                    display_name: String::new(),
+                    avatar: None,
+                });
+                change(&mut user);
+                Ok(txn.upsert_user(&user)?)
+            })
         })
-        .await?;
+        .await
+    }
+
+    /// Syncs the own profile to the other own devices and announces it to
+    /// every joined chat.
+    async fn publish_profile(&self) -> Result<()> {
+        let Some(user) = self.own_user().await? else {
+            return Ok(());
+        };
+        if !user.display_name.is_empty() {
+            self.send_to_self_group(Content::SelfProfile {
+                display_name: user.display_name,
+                avatar: user.avatar,
+            })
+            .await?;
+        }
         let chats = self.read(|store, _| Ok(store.chats()?)).await?;
         for chat in chats {
             if chat.membership == Membership::Joined {
@@ -234,8 +285,9 @@ impl<S: StateStore + 'static> Client<S> {
     /// Announces the own display name to a chat, if there is one. Best
     /// effort.
     pub(crate) async fn announce_profile(&self, group_id: &GroupId) {
-        let name = match self.own_user().await {
-            Ok(user) => user.map(|u| u.display_name).unwrap_or_default(),
+        let (name, avatar) = match self.own_user().await {
+            Ok(Some(user)) => (user.display_name, user.avatar),
+            Ok(None) => return,
             Err(err) => {
                 tracing::debug!(error = %err, "cannot read the own profile");
                 return;
@@ -244,7 +296,10 @@ impl<S: StateStore + 'static> Client<S> {
         if name.is_empty() {
             return;
         }
-        let content = Content::Profile { display_name: name };
+        let content = Content::Profile {
+            display_name: name,
+            avatar,
+        };
         if let Err(err) = self.send(group_id, content).await {
             tracing::debug!(%group_id, error = %err, "cannot announce the profile");
         }
@@ -283,11 +338,18 @@ impl<S: StateStore + 'static> Client<S> {
             self.send_to_self_group(Content::SelfDeviceList { device_list })
                 .await?;
         }
-        let name = self.own_user().await?.map(|u| u.display_name);
-        if let Some(display_name) = name.filter(|n| !n.is_empty()) {
-            self.send_to_self_group(Content::SelfProfile { display_name })
-                .await?;
+        if let Some(user) = self
+            .own_user()
+            .await?
+            .filter(|u| !u.display_name.is_empty())
+        {
+            self.send_to_self_group(Content::SelfProfile {
+                display_name: user.display_name,
+                avatar: user.avatar,
+            })
+            .await?;
         }
+        self.share_settings().await?;
         self.share_hub_locations().await;
         let chats = self.read(|store, _| Ok(store.chats()?)).await?;
         for chat in chats {

@@ -35,6 +35,22 @@ pub(crate) struct ChatData {
     pub last_seq: u64,
     pub last_read_seq: u64,
     pub membership: MembershipRow,
+    #[serde(default)]
+    pub muted_until_ms: u64,
+    #[serde(default)]
+    pub pinned: bool,
+    #[serde(default)]
+    pub archived: bool,
+    #[serde(default)]
+    pub settings_at_ms: u64,
+}
+
+#[derive(Serialize, Deserialize)]
+pub(crate) struct PrivacyData {
+    pub read_receipts: bool,
+    pub typing: bool,
+    pub blocked: Vec<UserId>,
+    pub updated_at_ms: u64,
 }
 
 #[derive(Serialize, Deserialize)]

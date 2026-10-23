@@ -180,6 +180,7 @@ impl<S: StateStore + 'static> Client<S> {
                     user_id,
                     handle: String::new(),
                     display_name: String::new(),
+                    avatar: None,
                 },
             })
             .await?;
@@ -381,6 +382,7 @@ impl<S: StateStore + 'static> Client<S> {
                     user_id: user_id.clone(),
                     handle: String::new(),
                     display_name: String::new(),
+                    avatar: None,
                 },
             })
             .await?;

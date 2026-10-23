@@ -10,8 +10,8 @@ use gim_base::model::{
     Chat, ChatKind, ChatMember, DepartedMember, GroupCursor, GroupMessage, HubRecord, HubState,
     KeyPackageRecord, MediaCacheEntry, Membership, MembershipChangeKind, MembershipEvent, Message,
     MessageContent, MessageKind, OutboxEntry, OutboxKind, OutboxState, PendingCommit,
-    PendingInvite, PendingLeave, PendingMedia, PendingWelcome, PreparedPayload, SendFailure,
-    SendState, UserInfo,
+    PendingInvite, PendingLeave, PendingMedia, PendingWelcome, PreparedPayload, Privacy,
+    SendFailure, SendState, UserInfo,
 };
 use gim_base::{
     BaseError, MemoryStore, StateReader, StateStore, StoreError, StoreTxn, WriteTarget,
@@ -357,6 +357,10 @@ fn write_rows(txn: &mut impl StoreTxn) -> Result<(), StoreError> {
     crew.last_message_id = Some(id("m3"));
     crew.last_seq = 3;
     crew.last_read_seq = 1;
+    crew.muted_until_ms = u64::MAX;
+    crew.pinned = true;
+    crew.archived = true;
+    crew.settings_at_ms = NOW + 7;
     txn.upsert_chat(&crew)?;
     let mut dm = Chat::new(group("dm"), ChatKind::Direct, NOW + 5);
     dm.membership = Membership::Left;
@@ -460,6 +464,13 @@ fn write_rows(txn: &mut impl StoreTxn) -> Result<(), StoreError> {
         user_id: UserId::new("alice").unwrap(),
         handle: "alice".into(),
         display_name: "Alice".into(),
+        avatar: Some(media("alice-photo")),
+    })?;
+    txn.set_privacy(&Privacy {
+        read_receipts: false,
+        typing: true,
+        blocked: BTreeSet::from([UserId::new("mallory").unwrap(), UserId::new("eve").unwrap()]),
+        updated_at_ms: NOW + 6,
     })?;
 
     let commit = |g: &str, welcome| PendingCommit {
@@ -594,6 +605,7 @@ fn update_rows(txn: &mut impl StoreTxn) -> Result<(), StoreError> {
         user_id: UserId::new("alice").unwrap(),
         handle: "alice".into(),
         display_name: "Alice M.".into(),
+        avatar: None,
     })?;
     let mut retried = txn.pending_commit(&group("crew"))?.unwrap();
     retried.epoch = 5;
@@ -643,6 +655,7 @@ fn remove_rows(txn: &mut impl StoreTxn) -> Result<(), StoreError> {
 
 fn assert_same_reads(expected: &impl StateReader, actual: &impl StateReader) {
     assert_eq!(actual.chats().unwrap(), expected.chats().unwrap());
+    assert_eq!(actual.privacy().unwrap(), expected.privacy().unwrap());
     for g in ["crew", "dm", "anchor", "unknown"].map(group) {
         assert_eq!(actual.chat(&g).unwrap(), expected.chat(&g).unwrap());
         for before_seq in [None, Some(0), Some(2), Some(3), Some(u64::MAX)] {

@@ -11,7 +11,6 @@ pub struct Session {
     pub display_name: String,
 }
 
-/// A device of a user, from the user's signed DeviceList.
 /// Result of `rotate_recovery_code`.
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
 pub struct RecoveryRotation {
@@ -22,6 +21,7 @@ pub struct RecoveryRotation {
     pub unsynced_hub_ids: Vec<String>,
 }
 
+/// A device of a user, from the user's signed DeviceList.
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
 pub struct DeviceInfo {
     pub device_id: String,
@@ -38,6 +38,19 @@ pub struct UserProfile {
     pub user_id: String,
     pub handle: String,
     pub display_name: String,
+    /// The user has a profile photo; get it with `fetch_user_avatar`.
+    pub has_avatar: bool,
+}
+
+/// The privacy settings, synced across the user's devices.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct PrivacySettings {
+    /// Send read receipts; off, the others' are not shown either.
+    pub read_receipts: bool,
+    /// Send typing indicators; off, the others' are not shown either.
+    pub typing_indicators: bool,
+    /// Users whose messages and invites are dropped.
+    pub blocked_user_ids: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
@@ -61,6 +74,18 @@ pub struct ChatSummary {
     /// Where this device stands in the chat; read from local state, so it is
     /// right from the first callback after a restart.
     pub state: ChatState,
+    /// For a direct chat: the other user. Show their photo
+    /// (`fetch_user_avatar`) when the chat has no avatar.
+    pub peer: Option<UserProfile>,
+    /// Notifications are muted until then (Unix milliseconds; 0: not muted,
+    /// `muted_forever()`: until unmuted). Compare with the current time.
+    pub muted_until_ms: u64,
+    /// Pinned chats come first.
+    pub pinned: bool,
+    /// Show archived chats apart from the others.
+    pub archived: bool,
+    /// A direct chat with a blocked user.
+    pub blocked: bool,
 }
 
 /// Where this device stands in a chat. Changes reach the chat list as a

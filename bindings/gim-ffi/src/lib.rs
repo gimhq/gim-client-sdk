@@ -28,8 +28,8 @@ pub use timeline::{LocalTimeZone, Timeline, TimelineDiff, TimelineListener};
 pub use types::{
     ChatKind, ChatState, ChatSummary, ConnectionState, DeviceInfo, HubInfo, HubState, MediaRef,
     MembershipChangeKind, MessageContent, MessageItem, MessagePreview, NotificationContent,
-    NotificationKind, PushRegistration, ReactionGroup, RecoveryRotation, ReplyPreview, SendFailure,
-    SendState, Session, TimelineItem, UserProfile,
+    NotificationKind, PrivacySettings, PushRegistration, ReactionGroup, RecoveryRotation,
+    ReplyPreview, SendFailure, SendState, Session, TimelineItem, UserProfile,
 };
 
 uniffi::setup_scaffolding!();
@@ -38,6 +38,13 @@ uniffi::setup_scaffolding!();
 #[uniffi::export]
 pub fn core_version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
+}
+
+/// `muted_until_ms` of a chat muted until it is unmuted
+/// (`set_chat_muted`).
+#[uniffi::export]
+pub fn muted_forever() -> u64 {
+    gim_sdk::MUTED_FOREVER
 }
 
 /// Name of the MLS ciphersuite every gim group uses.

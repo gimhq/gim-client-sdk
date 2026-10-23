@@ -7,8 +7,9 @@ mod common;
 use std::path::Path;
 
 use common::key;
-use gim_base::model::{HubRecord, HubState, KeyPackageRecord};
+use gim_base::model::{HubRecord, HubState, KeyPackageRecord, Privacy, UserInfo};
 use gim_base::{StateReader, StateStore, StoreTxn};
+use gim_common::UserId;
 use gim_store_sqlite::{SqliteStore, APPLICATION_ID, DATABASE_FILE_NAME, SCHEMA_VERSION};
 use rusqlite::Connection;
 
@@ -32,6 +33,17 @@ const C4B: &[&str] = &[
     include_str!("../migrations/0006_key_package_ledger.sql"),
 ];
 
+/// The migrations of the split-off SDK's first release: 0001-0007.
+const V7: &[&str] = &[
+    include_str!("../migrations/0001_schema.sql"),
+    include_str!("../migrations/0002_pending_leaves.sql"),
+    include_str!("../migrations/0003_pending_invites.sql"),
+    include_str!("../migrations/0004_hubs.sql"),
+    include_str!("../migrations/0005_hub_cursors.sql"),
+    include_str!("../migrations/0006_key_package_ledger.sql"),
+    include_str!("../migrations/0007_hubs_url_shared.sql"),
+];
+
 /// Every database a released build can leave behind.
 fn releases() -> Vec<(&'static str, Vec<&'static str>)> {
     vec![
@@ -45,6 +57,7 @@ fn releases() -> Vec<(&'static str, Vec<&'static str>)> {
             [D5EAD6D, &C4B[4..]].concat(),
         ),
         ("50f7915 v6", C4B.to_vec()),
+        ("v7", V7.to_vec()),
     ]
 }
 
@@ -213,4 +226,28 @@ fn released_databases_read_and_write_hubs_cursors_and_key_packages() {
         assert_eq!(store.hub_cursor("hb").unwrap(), Some(17), "{release}");
         assert_eq!(store.key_package_records().unwrap(), [record], "{release}");
     }
+}
+
+#[test]
+fn v7_users_keep_their_rows_without_an_avatar_and_privacy_defaults() {
+    let dir = tempfile::tempdir().unwrap();
+    build_release(dir.path(), V7);
+    raw_keyed(dir.path())
+        .execute(
+            "INSERT INTO users (user_id, handle, display_name) VALUES ('bob', 'bob', 'Bob')",
+            [],
+        )
+        .unwrap();
+    let store = SqliteStore::open(dir.path(), &key()).unwrap();
+    let bob = UserId::new("bob").unwrap();
+    assert_eq!(
+        store.user(&bob).unwrap(),
+        Some(UserInfo {
+            user_id: bob,
+            handle: "bob".into(),
+            display_name: "Bob".into(),
+            avatar: None,
+        })
+    );
+    assert_eq!(store.privacy().unwrap(), Privacy::default());
 }

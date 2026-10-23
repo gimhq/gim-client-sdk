@@ -452,6 +452,11 @@ uint64_t uniffi_gim_core_fn_method_gimclient_add_members(uint64_t ptr, RustBuffe
 uint64_t uniffi_gim_core_fn_method_gimclient_approve_link(uint64_t ptr, RustBuffer qr_string
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_METHOD_GIMCLIENT_BLOCK_USER
+#define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_METHOD_GIMCLIENT_BLOCK_USER
+uint64_t uniffi_gim_core_fn_method_gimclient_block_user(uint64_t ptr, RustBuffer user_id
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_METHOD_GIMCLIENT_CANCEL_SEND
 #define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_METHOD_GIMCLIENT_CANCEL_SEND
 uint64_t uniffi_gim_core_fn_method_gimclient_cancel_send(uint64_t ptr, RustBuffer chat_id, RustBuffer message_id
@@ -522,6 +527,11 @@ uint64_t uniffi_gim_core_fn_method_gimclient_devices(uint64_t ptr
 uint64_t uniffi_gim_core_fn_method_gimclient_edit_message(uint64_t ptr, RustBuffer chat_id, RustBuffer message_id, RustBuffer new_body
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_METHOD_GIMCLIENT_FETCH_CHAT_AVATAR
+#define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_METHOD_GIMCLIENT_FETCH_CHAT_AVATAR
+uint64_t uniffi_gim_core_fn_method_gimclient_fetch_chat_avatar(uint64_t ptr, RustBuffer chat_id, RustBuffer dest_path
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_METHOD_GIMCLIENT_FETCH_MEDIA
 #define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_METHOD_GIMCLIENT_FETCH_MEDIA
 uint64_t uniffi_gim_core_fn_method_gimclient_fetch_media(uint64_t ptr, RustBuffer chat_id, RustBuffer message_id, RustBuffer dest_path
@@ -530,6 +540,11 @@ uint64_t uniffi_gim_core_fn_method_gimclient_fetch_media(uint64_t ptr, RustBuffe
 #ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_METHOD_GIMCLIENT_FETCH_THUMBNAIL
 #define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_METHOD_GIMCLIENT_FETCH_THUMBNAIL
 uint64_t uniffi_gim_core_fn_method_gimclient_fetch_thumbnail(uint64_t ptr, RustBuffer chat_id, RustBuffer message_id, RustBuffer dest_path
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_METHOD_GIMCLIENT_FETCH_USER_AVATAR
+#define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_METHOD_GIMCLIENT_FETCH_USER_AVATAR
+uint64_t uniffi_gim_core_fn_method_gimclient_fetch_user_avatar(uint64_t ptr, RustBuffer user_id, RustBuffer dest_path
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_METHOD_GIMCLIENT_FIND_USER
@@ -562,6 +577,16 @@ int8_t uniffi_gim_core_fn_method_gimclient_local_state_reset(uint64_t ptr, RustC
 uint64_t uniffi_gim_core_fn_method_gimclient_mark_read(uint64_t ptr, RustBuffer chat_id, RustBuffer up_to_message_id
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_METHOD_GIMCLIENT_OWN_PROFILE
+#define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_METHOD_GIMCLIENT_OWN_PROFILE
+uint64_t uniffi_gim_core_fn_method_gimclient_own_profile(uint64_t ptr
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_METHOD_GIMCLIENT_PRIVACY
+#define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_METHOD_GIMCLIENT_PRIVACY
+uint64_t uniffi_gim_core_fn_method_gimclient_privacy(uint64_t ptr
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_METHOD_GIMCLIENT_PROCESS_PUSH
 #define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_METHOD_GIMCLIENT_PROCESS_PUSH
 uint64_t uniffi_gim_core_fn_method_gimclient_process_push(uint64_t ptr, RustBuffer payload
@@ -580,6 +605,11 @@ uint64_t uniffi_gim_core_fn_method_gimclient_register_push(uint64_t ptr, RustBuf
 #ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_METHOD_GIMCLIENT_RELEASE_HANDLE
 #define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_METHOD_GIMCLIENT_RELEASE_HANDLE
 uint64_t uniffi_gim_core_fn_method_gimclient_release_handle(uint64_t ptr
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_METHOD_GIMCLIENT_REMOVE_AVATAR
+#define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_METHOD_GIMCLIENT_REMOVE_AVATAR
+uint64_t uniffi_gim_core_fn_method_gimclient_remove_avatar(uint64_t ptr
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_METHOD_GIMCLIENT_REMOVE_HUB
@@ -627,6 +657,26 @@ uint64_t uniffi_gim_core_fn_method_gimclient_send_text(uint64_t ptr, RustBuffer 
 uint64_t uniffi_gim_core_fn_method_gimclient_session(uint64_t ptr
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_METHOD_GIMCLIENT_SET_AVATAR
+#define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_METHOD_GIMCLIENT_SET_AVATAR
+uint64_t uniffi_gim_core_fn_method_gimclient_set_avatar(uint64_t ptr, RustBuffer file_path, RustBuffer mime
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_METHOD_GIMCLIENT_SET_CHAT_ARCHIVED
+#define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_METHOD_GIMCLIENT_SET_CHAT_ARCHIVED
+uint64_t uniffi_gim_core_fn_method_gimclient_set_chat_archived(uint64_t ptr, RustBuffer chat_id, int8_t archived
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_METHOD_GIMCLIENT_SET_CHAT_MUTED
+#define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_METHOD_GIMCLIENT_SET_CHAT_MUTED
+uint64_t uniffi_gim_core_fn_method_gimclient_set_chat_muted(uint64_t ptr, RustBuffer chat_id, uint64_t muted_until_ms
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_METHOD_GIMCLIENT_SET_CHAT_PINNED
+#define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_METHOD_GIMCLIENT_SET_CHAT_PINNED
+uint64_t uniffi_gim_core_fn_method_gimclient_set_chat_pinned(uint64_t ptr, RustBuffer chat_id, int8_t pinned
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_METHOD_GIMCLIENT_SET_DISPLAY_NAME
 #define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_METHOD_GIMCLIENT_SET_DISPLAY_NAME
 uint64_t uniffi_gim_core_fn_method_gimclient_set_display_name(uint64_t ptr, RustBuffer name
@@ -652,9 +702,19 @@ void uniffi_gim_core_fn_method_gimclient_set_network_reachable(uint64_t ptr, int
 uint64_t uniffi_gim_core_fn_method_gimclient_set_primary_hub(uint64_t ptr, RustBuffer hub_id
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_METHOD_GIMCLIENT_SET_READ_RECEIPTS
+#define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_METHOD_GIMCLIENT_SET_READ_RECEIPTS
+uint64_t uniffi_gim_core_fn_method_gimclient_set_read_receipts(uint64_t ptr, int8_t enabled
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_METHOD_GIMCLIENT_SET_TYPING
 #define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_METHOD_GIMCLIENT_SET_TYPING
 uint64_t uniffi_gim_core_fn_method_gimclient_set_typing(uint64_t ptr, RustBuffer chat_id, int8_t active
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_METHOD_GIMCLIENT_SET_TYPING_INDICATORS
+#define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_METHOD_GIMCLIENT_SET_TYPING_INDICATORS
+uint64_t uniffi_gim_core_fn_method_gimclient_set_typing_indicators(uint64_t ptr, int8_t enabled
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_METHOD_GIMCLIENT_SIGN_OUT
@@ -690,6 +750,11 @@ uint64_t uniffi_gim_core_fn_method_gimclient_timeline(uint64_t ptr, RustBuffer c
 #ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_METHOD_GIMCLIENT_TYPING
 #define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_METHOD_GIMCLIENT_TYPING
 uint64_t uniffi_gim_core_fn_method_gimclient_typing(uint64_t ptr, RustBuffer chat_id, uint64_t listener
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_METHOD_GIMCLIENT_UNBLOCK_USER
+#define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_METHOD_GIMCLIENT_UNBLOCK_USER
+uint64_t uniffi_gim_core_fn_method_gimclient_unblock_user(uint64_t ptr, RustBuffer user_id
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_METHOD_GIMCLIENT_UNREACT
@@ -931,6 +996,12 @@ RustBuffer uniffi_gim_core_fn_func_ciphersuite_name(RustCallStatus *_Nonnull out
 #ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_FUNC_CORE_VERSION
 #define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_FUNC_CORE_VERSION
 RustBuffer uniffi_gim_core_fn_func_core_version(RustCallStatus *_Nonnull out_status
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_FUNC_MUTED_FOREVER
+#define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_FUNC_MUTED_FOREVER
+uint64_t uniffi_gim_core_fn_func_muted_forever(RustCallStatus *_Nonnull out_status
     
 );
 #endif
@@ -1211,6 +1282,12 @@ uint16_t uniffi_gim_core_checksum_func_core_version(void
     
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_FUNC_MUTED_FOREVER
+#define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_FUNC_MUTED_FOREVER
+uint16_t uniffi_gim_core_checksum_func_muted_forever(void
+    
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_FUNC_CREATE_CLIENT
 #define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_FUNC_CREATE_CLIENT
 uint16_t uniffi_gim_core_checksum_func_create_client(void
@@ -1244,6 +1321,12 @@ uint16_t uniffi_gim_core_checksum_method_gimclient_add_members(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_METHOD_GIMCLIENT_APPROVE_LINK
 #define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_METHOD_GIMCLIENT_APPROVE_LINK
 uint16_t uniffi_gim_core_checksum_method_gimclient_approve_link(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_METHOD_GIMCLIENT_BLOCK_USER
+#define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_METHOD_GIMCLIENT_BLOCK_USER
+uint16_t uniffi_gim_core_checksum_method_gimclient_block_user(void
     
 );
 #endif
@@ -1331,6 +1414,12 @@ uint16_t uniffi_gim_core_checksum_method_gimclient_edit_message(void
     
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_METHOD_GIMCLIENT_FETCH_CHAT_AVATAR
+#define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_METHOD_GIMCLIENT_FETCH_CHAT_AVATAR
+uint16_t uniffi_gim_core_checksum_method_gimclient_fetch_chat_avatar(void
+    
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_METHOD_GIMCLIENT_FETCH_MEDIA
 #define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_METHOD_GIMCLIENT_FETCH_MEDIA
 uint16_t uniffi_gim_core_checksum_method_gimclient_fetch_media(void
@@ -1340,6 +1429,12 @@ uint16_t uniffi_gim_core_checksum_method_gimclient_fetch_media(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_METHOD_GIMCLIENT_FETCH_THUMBNAIL
 #define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_METHOD_GIMCLIENT_FETCH_THUMBNAIL
 uint16_t uniffi_gim_core_checksum_method_gimclient_fetch_thumbnail(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_METHOD_GIMCLIENT_FETCH_USER_AVATAR
+#define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_METHOD_GIMCLIENT_FETCH_USER_AVATAR
+uint16_t uniffi_gim_core_checksum_method_gimclient_fetch_user_avatar(void
     
 );
 #endif
@@ -1379,6 +1474,18 @@ uint16_t uniffi_gim_core_checksum_method_gimclient_mark_read(void
     
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_METHOD_GIMCLIENT_OWN_PROFILE
+#define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_METHOD_GIMCLIENT_OWN_PROFILE
+uint16_t uniffi_gim_core_checksum_method_gimclient_own_profile(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_METHOD_GIMCLIENT_PRIVACY
+#define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_METHOD_GIMCLIENT_PRIVACY
+uint16_t uniffi_gim_core_checksum_method_gimclient_privacy(void
+    
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_METHOD_GIMCLIENT_PROCESS_PUSH
 #define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_METHOD_GIMCLIENT_PROCESS_PUSH
 uint16_t uniffi_gim_core_checksum_method_gimclient_process_push(void
@@ -1400,6 +1507,12 @@ uint16_t uniffi_gim_core_checksum_method_gimclient_register_push(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_METHOD_GIMCLIENT_RELEASE_HANDLE
 #define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_METHOD_GIMCLIENT_RELEASE_HANDLE
 uint16_t uniffi_gim_core_checksum_method_gimclient_release_handle(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_METHOD_GIMCLIENT_REMOVE_AVATAR
+#define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_METHOD_GIMCLIENT_REMOVE_AVATAR
+uint16_t uniffi_gim_core_checksum_method_gimclient_remove_avatar(void
     
 );
 #endif
@@ -1457,6 +1570,30 @@ uint16_t uniffi_gim_core_checksum_method_gimclient_session(void
     
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_METHOD_GIMCLIENT_SET_AVATAR
+#define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_METHOD_GIMCLIENT_SET_AVATAR
+uint16_t uniffi_gim_core_checksum_method_gimclient_set_avatar(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_METHOD_GIMCLIENT_SET_CHAT_ARCHIVED
+#define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_METHOD_GIMCLIENT_SET_CHAT_ARCHIVED
+uint16_t uniffi_gim_core_checksum_method_gimclient_set_chat_archived(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_METHOD_GIMCLIENT_SET_CHAT_MUTED
+#define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_METHOD_GIMCLIENT_SET_CHAT_MUTED
+uint16_t uniffi_gim_core_checksum_method_gimclient_set_chat_muted(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_METHOD_GIMCLIENT_SET_CHAT_PINNED
+#define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_METHOD_GIMCLIENT_SET_CHAT_PINNED
+uint16_t uniffi_gim_core_checksum_method_gimclient_set_chat_pinned(void
+    
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_METHOD_GIMCLIENT_SET_DISPLAY_NAME
 #define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_METHOD_GIMCLIENT_SET_DISPLAY_NAME
 uint16_t uniffi_gim_core_checksum_method_gimclient_set_display_name(void
@@ -1487,9 +1624,21 @@ uint16_t uniffi_gim_core_checksum_method_gimclient_set_primary_hub(void
     
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_METHOD_GIMCLIENT_SET_READ_RECEIPTS
+#define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_METHOD_GIMCLIENT_SET_READ_RECEIPTS
+uint16_t uniffi_gim_core_checksum_method_gimclient_set_read_receipts(void
+    
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_METHOD_GIMCLIENT_SET_TYPING
 #define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_METHOD_GIMCLIENT_SET_TYPING
 uint16_t uniffi_gim_core_checksum_method_gimclient_set_typing(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_METHOD_GIMCLIENT_SET_TYPING_INDICATORS
+#define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_METHOD_GIMCLIENT_SET_TYPING_INDICATORS
+uint16_t uniffi_gim_core_checksum_method_gimclient_set_typing_indicators(void
     
 );
 #endif
@@ -1532,6 +1681,12 @@ uint16_t uniffi_gim_core_checksum_method_gimclient_timeline(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_METHOD_GIMCLIENT_TYPING
 #define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_METHOD_GIMCLIENT_TYPING
 uint16_t uniffi_gim_core_checksum_method_gimclient_typing(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_METHOD_GIMCLIENT_UNBLOCK_USER
+#define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_METHOD_GIMCLIENT_UNBLOCK_USER
+uint16_t uniffi_gim_core_checksum_method_gimclient_unblock_user(void
     
 );
 #endif

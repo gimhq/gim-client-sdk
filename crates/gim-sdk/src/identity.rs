@@ -173,6 +173,7 @@ impl<S: StateStore + 'static> Client<S> {
                     user_id,
                     handle: String::new(),
                     display_name: display_name.to_string(),
+                    avatar: None,
                 },
             })
             .await?;
@@ -457,6 +458,7 @@ impl<S: StateStore + 'static> Client<S> {
             user_id: record.user_id,
             display_name: record.display_name.unwrap_or_default(),
             handle: record.handle.unwrap_or_default(),
+            avatar: None,
         })
     }
 

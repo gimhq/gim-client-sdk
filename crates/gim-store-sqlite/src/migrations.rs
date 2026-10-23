@@ -36,6 +36,7 @@ const MIGRATIONS: &[Migration] = &[
         sql: include_str!("../migrations/0007_hubs_url_shared.sql"),
         unless_column: Some(("hubs", "url_shared")),
     },
+    sql(include_str!("../migrations/0008_privacy_avatars.sql")),
 ];
 
 /// Schema version written by this build.

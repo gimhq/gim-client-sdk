@@ -18,6 +18,7 @@ fn user(name: &str) -> UserInfo {
         user_id: UserId::new(name).unwrap(),
         handle: name.into(),
         display_name: name.into(),
+        avatar: None,
     }
 }
 

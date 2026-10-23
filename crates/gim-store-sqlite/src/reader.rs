@@ -6,14 +6,15 @@ use std::collections::BTreeSet;
 use gim_base::model::{
     Chat, DepartedMember, GroupCursor, GroupMessage, HubRecord, HubState, KeyPackageRecord,
     MediaCacheEntry, MembershipChangeKind, MembershipEvent, Message, OutboxEntry, OutboxState,
-    PendingCommit, PendingInvite, PendingLeave, UserInfo,
+    PendingCommit, PendingInvite, PendingLeave, Privacy, UserInfo,
 };
 use gim_base::{StateReader, StoreError};
 use gim_common::{DeviceRef, GroupId, MessageId, UserId};
 use rusqlite::{params, Connection, Params, Row};
 
 use crate::rows::{
-    decode, ChatData, MessageData, OutboxData, ParkedData, PendingCommitData, PendingLeaveData,
+    decode, ChatData, MediaRow, MessageData, OutboxData, ParkedData, PendingCommitData,
+    PendingLeaveData, PrivacyData,
 };
 
 type StoreResult<T> = Result<T, StoreError>;
@@ -135,6 +136,10 @@ impl Reader<'_> {
                 last_read_seq: data.last_read_seq,
                 updated_at_ms: get(row, 1)?,
                 membership: data.membership.into(),
+                muted_until_ms: data.muted_until_ms,
+                pinned: data.pinned,
+                archived: data.archived,
+                settings_at_ms: data.settings_at_ms,
             })
         })
     }
@@ -382,16 +387,34 @@ impl StateReader for Reader<'_> {
 
     fn user(&self, user_id: &UserId) -> StoreResult<Option<UserInfo>> {
         self.query_one(
-            "SELECT user_id, handle, display_name FROM users WHERE user_id = ?1",
+            "SELECT user_id, handle, display_name, avatar FROM users WHERE user_id = ?1",
             [user_id.as_str()],
             |row| {
+                let avatar = get::<Option<Vec<u8>>>(row, 3)?
+                    .map(|bytes| decode::<MediaRow>(&bytes))
+                    .transpose()?
+                    .map(TryInto::try_into)
+                    .transpose()?;
                 Ok(UserInfo {
                     user_id: UserId::new(get::<String>(row, 0)?).map_err(StoreError::new)?,
                     handle: get(row, 1)?,
                     display_name: get(row, 2)?,
+                    avatar,
                 })
             },
         )
+    }
+
+    fn privacy(&self) -> StoreResult<Privacy> {
+        let data = self.query_one("SELECT data FROM privacy WHERE id = 1", [], |row| {
+            decode::<PrivacyData>(&get::<Vec<u8>>(row, 0)?)
+        })?;
+        Ok(data.map_or_else(Privacy::default, |d| Privacy {
+            read_receipts: d.read_receipts,
+            typing: d.typing,
+            blocked: d.blocked.into_iter().collect(),
+            updated_at_ms: d.updated_at_ms,
+        }))
     }
 
     fn pending_commit(&self, group_id: &GroupId) -> StoreResult<Option<PendingCommit>> {

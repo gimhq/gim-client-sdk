@@ -287,6 +287,8 @@ is never deleted, so that both processes always lock the same file.
 | `userDevices(userId)` | `[DeviceInfo]` | Another user's devices; empty for an unknown user. |
 | `revokeDevice(deviceId)` | | `InvalidInput` for the current device. |
 | `setDisplayName(name)` | | Synced to the user's other devices and announced to every joined chat. `InvalidInput` if empty. |
+| `ownProfile()` | `UserProfile?` | The signed-in user's name, handle and `hasAvatar`, from local state. |
+| `setAvatar(filePath, mime)`, `removeAvatar()` | | The profile photo. Crop and scale the image first: every member of every chat downloads it. The file is encrypted and uploaded before the call returns, then the photo is synced to the user's other devices and announced to every joined chat like the display name. |
 | `claimHandle(handle)` | | `Server(409)` if taken. |
 | `releaseHandle()` | | `InvalidInput` if no handle is claimed. |
 | `signOut()` | | |
@@ -305,12 +307,18 @@ is never deleted, so that both processes always lock the same file.
 | `editMessage(chatId, messageId, newBody)`, `deleteMessage(chatId, messageId)` | | |
 | `react(chatId, messageId, emoji)`, `unreact(chatId, messageId, emoji)` | | |
 | `retrySend(chatId, messageId)`, `cancelSend(chatId, messageId)` | | For messages in `SendState.Failed`. |
-| `markRead(chatId, upToMessageId)` | | Also sends a read receipt. M1 marks the whole chat read; `upToMessageId` is only validated. |
-| `setTyping(chatId, active)` | | Call with `true` on each keystroke (sent at most every 3 s) and `false` when typing stops. |
+| `markRead(chatId, upToMessageId)` | | Also sends a read receipt, unless read receipts are switched off. M1 marks the whole chat read; `upToMessageId` is only validated. |
+| `setTyping(chatId, active)` | | Call with `true` on each keystroke (sent at most every 3 s) and `false` when typing stops. Sends nothing while typing indicators are switched off. |
 | `stopTyping(chatId)` | | Same as `setTyping(chatId, false)`: call when the input is cleared, the message sent or the chat is left. Does nothing unless typing was reported. |
 | `fetchMedia(chatId, messageId, destPath)` | file path | Downloads and decrypts the attachment. A blob uploaded on another hub is fetched by the own hub from that hub on first access. `NotFound` if the blob is unknown (or federation is disabled on the own hub); `RetryLater(503, …)` while the uploader's hub stays unreachable and `Server(502, …)` while it keeps refusing, after up to 3 attempts within the call. |
 | `fetchThumbnail(chatId, messageId, destPath)` | file path? | `null`/`nil` if the media has no thumbnail. |
-| `chatList(listener)` | `TaskHandle` | Rows are `ChatSummary` (`chatId`, `kind`, `name`, `avatar?`, `lastMessage?`, `unreadCount`, `updatedAtMs`, `memberCount`, `state`). |
+| `fetchUserAvatar(userId, destPath)` | file path | The profile photo of a user (the signed-in user included), downloaded like `fetchMedia`. `NotFound` if they have none (`UserProfile.hasAvatar`). |
+| `fetchChatAvatar(chatId, destPath)` | file path | The avatar of a group chat set with `setGroupInfo`. `NotFound` if it has none. |
+| `privacy()` | `PrivacySettings` | See *Privacy and chat settings*. |
+| `setReadReceipts(enabled)`, `setTypingIndicators(enabled)` | | See *Privacy and chat settings*. |
+| `blockUser(userId)`, `unblockUser(userId)` | | See *Privacy and chat settings*. `InvalidInput` for the signed-in user. |
+| `setChatMuted(chatId, mutedUntilMs)`, `setChatPinned(chatId, pinned)`, `setChatArchived(chatId, archived)` | | See *Privacy and chat settings*. `NotFound` for an unknown chat. |
+| `chatList(listener)` | `TaskHandle` | Rows are `ChatSummary` (`chatId`, `kind`, `name`, `avatar?`, `lastMessage?`, `unreadCount`, `updatedAtMs`, `memberCount`, `state`, `peer?`, `mutedUntilMs`, `pinned`, `archived`, `blocked`), pinned chats first, then the most recently updated. `peer` is the other user of a direct chat: show their photo when `avatar` is absent. |
 | `timeline(chatId)` | `Timeline` | |
 | `setLocalTimeZone(zone?)` | | Synchronous, never throws. Date separators follow `zone`; `null`/`nil` is UTC (the default). See *Local time zone*. |
 | `connectionState(listener)` | `TaskHandle` | `Offline` until `startSync` and after a failure while waiting to retry; `Connecting` → `Syncing` (catching up) → `Connected`. |
@@ -326,6 +334,25 @@ to delivery, so native code can key views by it.
 
 `DeviceInfo` is `deviceId`, `createdAtMs` (when the device was certified; 0 for revoked devices),
 `isCurrent` (this client's device) and `revoked`.
+
+### Privacy and chat settings
+
+Settings live on the user's devices only: each change is stored locally and synced to the other
+own devices through the self group (encrypted, like the display name); the latest change wins. A
+newly linked device receives them with the link. Hubs never see them.
+
+- `PrivacySettings` is `readReceipts`, `typingIndicators` and `blockedUserIds`; all on and empty
+  by default. With read receipts off, `markRead` sends none and the others' read receipts are not
+  shown (`SendState` stops at delivered); typing indicators work the same way.
+- **Blocking** is enforced by this client: messages, reactions, receipts and typing of a blocked
+  user are dropped, and their invites to new chats are refused. Creating a chat with them or adding
+  them fails with `InvalidInput`. Existing chats stay; a direct chat with them has
+  `ChatSummary.blocked`. Unblocking lets new messages through; the dropped ones do not come back.
+- **Mute**: `setChatMuted(chatId, mutedUntilMs)` with a Unix time in milliseconds,
+  `mutedForever()` for good, `0` to unmute. `processPush` returns `shouldDisplay = false` for a
+  muted chat. Compare `ChatSummary.mutedUntilMs` with the current time to show the state.
+- **Pin** puts the chat at the top of `chatList`; **archive** only sets `ChatSummary.archived`:
+  show archived chats apart. A new message does not unarchive a chat.
 
 ### Hub management
 
@@ -705,3 +732,4 @@ you". Do not offer Retry for these errors, nor for messages that failed with `ca
 
 - `coreVersion()` — version of the gim-core library.
 - `ciphersuiteName()` — the MLS ciphersuite used by every chat.
+- `mutedForever()` — the `mutedUntilMs` of a chat muted until it is unmuted.

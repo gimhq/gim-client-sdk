@@ -18,6 +18,9 @@ pub struct UserProfile {
     pub user_id: UserId,
     pub handle: String,
     pub display_name: String,
+    /// The user has a profile photo; fetch it with
+    /// `Client::fetch_user_avatar`.
+    pub has_avatar: bool,
 }
 
 /// One row of the chat list.
@@ -34,6 +37,16 @@ pub struct ChatListItem {
     /// Distinct users in the chat, this user included.
     pub member_count: u32,
     pub state: ChatState,
+    /// For a direct chat: the other user, whose profile photo stands for
+    /// the chat when it has no avatar of its own.
+    pub peer: Option<UserProfile>,
+    /// Notifications are muted until then (Unix milliseconds; 0: not muted,
+    /// `u64::MAX`: until unmuted).
+    pub muted_until_ms: u64,
+    pub pinned: bool,
+    pub archived: bool,
+    /// A direct chat with a blocked user: nothing they send arrives.
+    pub blocked: bool,
 }
 
 /// Where this device stands in a chat.
@@ -209,6 +222,7 @@ pub(crate) fn profile<R: StateReader + ?Sized>(
             user_id: user.user_id,
             handle: user.handle,
             display_name: user.display_name,
+            has_avatar: user.avatar.is_some(),
         });
     }
     let member_name = chat.and_then(|chat| {
@@ -221,6 +235,7 @@ pub(crate) fn profile<R: StateReader + ?Sized>(
         user_id: user_id.clone(),
         handle: user_id.to_string(),
         display_name: member_name.unwrap_or_else(|| user_id.to_string()),
+        has_avatar: false,
     })
 }
 
@@ -234,13 +249,25 @@ pub(crate) fn chat_list_item<R: StateReader + ?Sized>(
     users.dedup();
     let mut others = Vec::new();
     for user_id in users.iter().filter(|u| **u != own) {
-        others.push(profile(store, Some(chat), user_id)?.display_name);
+        others.push(profile(store, Some(chat), user_id)?);
     }
+    let peer = match chat.kind {
+        ChatKind::Direct => others.first().cloned(),
+        ChatKind::Group => None,
+    };
     let name = match (chat.kind, &chat.name) {
         (ChatKind::Group, Some(name)) => name.clone(),
-        (ChatKind::Direct, _) if !others.is_empty() => others[0].clone(),
+        (ChatKind::Direct, _) if !others.is_empty() => others[0].display_name.clone(),
         (_, Some(name)) => name.clone(),
-        (_, None) => others.join(", "),
+        (_, None) => others
+            .iter()
+            .map(|p| p.display_name.as_str())
+            .collect::<Vec<_>>()
+            .join(", "),
+    };
+    let blocked = match &peer {
+        Some(peer) => store.privacy()?.blocked.contains(&peer.user_id),
+        None => false,
     };
     let last_message = match &chat.last_message_id {
         Some(id) => match store.message(id)? {
@@ -267,6 +294,11 @@ pub(crate) fn chat_list_item<R: StateReader + ?Sized>(
         updated_at_ms: chat.updated_at_ms,
         member_count: users.len() as u32,
         state: chat.membership.into(),
+        peer,
+        muted_until_ms: chat.muted_until_ms,
+        pinned: chat.pinned,
+        archived: chat.archived,
+        blocked,
     })
 }
 

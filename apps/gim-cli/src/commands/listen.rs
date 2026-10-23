@@ -183,7 +183,7 @@ fn chat_of(change: &StateChange) -> Option<&GroupId> {
         | StateChange::Typing { group_id, .. } => Some(group_id),
         StateChange::MessageUpserted(message) => Some(&message.group_id),
         StateChange::MembershipChanged(event) => Some(&event.group_id),
-        StateChange::KeyPackagesLow => None,
+        StateChange::KeyPackagesLow | StateChange::PrivacyChanged(_) => None,
     }
 }
 
@@ -205,7 +205,8 @@ fn users_of_change<'a>(change: &'a StateChange, me: &'a UserId) -> Vec<&'a UserI
         StateChange::Typing { user_id, .. } => vec![user_id],
         StateChange::ChatRemoved(_)
         | StateChange::MessageRemoved { .. }
-        | StateChange::KeyPackagesLow => Vec::new(),
+        | StateChange::KeyPackagesLow
+        | StateChange::PrivacyChanged(_) => Vec::new(),
     }
 }
 

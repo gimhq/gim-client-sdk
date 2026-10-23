@@ -177,9 +177,12 @@ impl<S: StateStore + 'static> Client<S> {
     /// Tells the chat whether the user is typing. Sent directly, never
     /// queued; while active, repeated calls send at most one notification
     /// per [`TYPING_INTERVAL`], and an inactive call only follows an
-    /// active one.
+    /// active one. Sends nothing while typing indicators are switched off.
     pub async fn set_typing(&self, group_id: &GroupId, active: bool) -> Result<()> {
         let session = self.require_session()?;
+        if !self.privacy().await?.typing {
+            return Ok(());
+        }
         {
             let mut typing = self.inner.typing.lock().unwrap_or_else(|e| e.into_inner());
             let due = match typing.get(group_id) {
