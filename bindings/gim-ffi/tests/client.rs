@@ -16,7 +16,7 @@ use gim_core::{
     PlatformHooks, PushRegistration, ReportReason, SendState, TaskHandle, TimelineDiff,
     TimelineItem, TimelineListener, TypingListener,
 };
-use gim_sdk::testing::{FakeAppServer, FakeTransport};
+use gim_sdk::testing::{FakeMetaServer, FakeTransport};
 use tempfile::TempDir;
 
 /// In-memory keystore and a temporary data directory.
@@ -171,7 +171,7 @@ async fn open(transport: &FakeTransport, hooks: &Arc<MemoryHooks>) -> Arc<GimCli
     let config = ClientConfig {
         server_url: "https://gim.example.org".to_string(),
         mode: None,
-        app_server_url: None,
+        meta_server_url: None,
     };
     create_client_with_fake_transport(config, hooks.clone(), transport.clone())
         .await
@@ -1123,7 +1123,7 @@ async fn locked_keystore_fails_without_replacing_the_database_key() {
     let config = ClientConfig {
         server_url: "https://gim.example.org".to_string(),
         mode: None,
-        app_server_url: None,
+        meta_server_url: None,
     };
     let result = create_client_with_fake_transport(config, hooks.clone(), transport.clone()).await;
     assert!(matches!(result, Err(GimError::Storage { .. })));
@@ -1218,7 +1218,7 @@ async fn extension_mode_opens_the_app_state_and_never_resets_it() {
         let config = ClientConfig {
             server_url: "https://gim.example.org".to_string(),
             mode: Some(ClientMode::Extension),
-            app_server_url: None,
+            meta_server_url: None,
         };
         create_client_with_fake_transport(config, hooks.clone(), transport.clone())
     };
@@ -1270,7 +1270,7 @@ async fn only_the_app_signs_out_and_the_extension_fails_after() {
     let config = ClientConfig {
         server_url: "https://gim.example.org".to_string(),
         mode: Some(ClientMode::Extension),
-        app_server_url: None,
+        meta_server_url: None,
     };
     let nse = create_client_with_fake_transport(config, alice.hooks.clone(), transport.clone())
         .await
@@ -1359,12 +1359,12 @@ async fn privacy_and_chat_settings_round_trip() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_report_and_the_account_deletion_reach_the_servers() {
     let transport = FakeTransport::new();
-    let app = FakeAppServer::new();
+    let app = FakeMetaServer::new();
     let hooks = MemoryHooks::new();
     let config = ClientConfig {
         server_url: "https://gim.example.org".to_string(),
         mode: None,
-        app_server_url: None,
+        meta_server_url: None,
     };
     let alice =
         create_client_with_fake_servers(config, hooks.clone(), transport.clone(), app.clone())
@@ -1376,7 +1376,7 @@ async fn a_report_and_the_account_deletion_reach_the_servers() {
     bob.create_identity("Bob".to_string()).await.unwrap();
     let bob_id = bob.user_id().unwrap();
 
-    // Bob's client has no app server.
+    // Bob's client has no meta server.
     assert!(matches!(
         bob.report_user(alice_id.clone(), ReportReason::Other, None, vec![])
             .await,

@@ -1,4 +1,4 @@
-//! [`AppServer`] over the gim-app raw API (`/api/raw/gim/v1`): JSON bodies
+//! [`MetaServer`] over the gim-meta raw API (`/api/raw/gim/v1`): JSON bodies
 //! in the `{ success, data }` envelope, every request root-signed.
 
 use async_trait::async_trait;
@@ -12,15 +12,15 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use super::{error, retry_after, HttpConfig, Url};
-use crate::app_server::{AbuseReport, AppServer, StoredSlot};
+use crate::meta_server::{AbuseReport, MetaServer, StoredSlot};
 use crate::transport::{TransportError, TransportResult};
 
-/// Route prefix of the client API on the app server.
+/// Route prefix of the client API on the meta server.
 const API_PREFIX: &str = "api/raw/gim/v1/";
 
-/// HTTP [`AppServer`]. Clones share the connection pool.
+/// HTTP [`MetaServer`]. Clones share the connection pool.
 #[derive(Debug, Clone)]
-pub struct HttpAppServer {
+pub struct HttpMetaServer {
     client: reqwest::Client,
     /// Ends with `API_PREFIX`.
     api_url: Url,
@@ -47,8 +47,8 @@ struct Created {
     id: String,
 }
 
-impl HttpAppServer {
-    /// `base_url` is the app server's origin (and path, if it is mounted
+impl HttpMetaServer {
+    /// `base_url` is the meta server's origin (and path, if it is mounted
     /// below one); the client API is under `api/raw/gim/v1` there.
     pub fn new(base_url: Url) -> TransportResult<Self> {
         Self::with_config(base_url, HttpConfig::default())
@@ -60,7 +60,7 @@ impl HttpAppServer {
         }
         let api_url = base_url
             .join(API_PREFIX)
-            .map_err(|e| TransportError::Network(format!("invalid app server URL: {e}")))?;
+            .map_err(|e| TransportError::Network(format!("invalid meta server URL: {e}")))?;
         let client = reqwest::Client::builder()
             .connect_timeout(config.connect_timeout)
             .timeout(config.request_timeout)
@@ -81,7 +81,7 @@ impl HttpAppServer {
         let url = self
             .api_url
             .join(route)
-            .map_err(|e| TransportError::Network(format!("invalid app server route: {e}")))?;
+            .map_err(|e| TransportError::Network(format!("invalid meta server route: {e}")))?;
         let path = match url.query() {
             Some(query) => format!("{}?{query}", url.path()),
             None => url.path().to_string(),
@@ -121,7 +121,7 @@ fn json(value: &impl Serialize) -> TransportResult<Vec<u8>> {
 }
 
 #[async_trait]
-impl AppServer for HttpAppServer {
+impl MetaServer for HttpMetaServer {
     async fn slot(&self, root: &RootKey, name: &str) -> TransportResult<Option<StoredSlot>> {
         let route = format!("storage/{name}");
         let slot: Slot = match self.send(root, Method::GET, &route, None).await {

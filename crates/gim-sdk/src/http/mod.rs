@@ -5,9 +5,9 @@
 //! `reqwest::Client`, per-request auth and timeouts, and a single place that
 //! maps HTTP statuses to errors. No code is copied.
 
-mod app_server;
 mod convert;
 mod error;
+mod meta_server;
 
 use std::ops::Range;
 use std::path::Path;
@@ -34,7 +34,7 @@ use crate::transport::{
     TransportResult, UserRecord,
 };
 
-pub use app_server::HttpAppServer;
+pub use meta_server::HttpMetaServer;
 pub use reqwest::Url;
 
 /// Longest long-poll `wait` the hub accepts.

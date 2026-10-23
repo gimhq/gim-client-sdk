@@ -1,4 +1,4 @@
-//! Account deletion: the user's data on the app server, their chats and
+//! Account deletion: the user's data on the meta server, their chats and
 //! their records on every hub, all authorized by the root key.
 
 use gim_base::model::Membership;
@@ -10,8 +10,8 @@ use crate::{Client, ClientError, Result};
 impl<S: StateStore + 'static> Client<S> {
     /// Deletes the user's account for good, in this order:
     ///
-    /// 1. the app server's data of the user (the encrypted settings
-    ///    backup), if an app server is configured;
+    /// 1. the meta server's data of the user (the encrypted settings
+    ///    backup), if a meta server is configured;
     /// 2. the user leaves every chat (best effort: the members see them
     ///    leave);
     /// 3. the home hub deletes the user, their devices, handles, recovery
@@ -31,8 +31,8 @@ impl<S: StateStore + 'static> Client<S> {
             ));
         }
         let root = self.root_key()?;
-        if let Some(app_server) = self.inner.app_server.as_deref() {
-            app_server.delete_user_data(&root).await?;
+        if let Some(meta_server) = self.inner.meta_server.as_deref() {
+            meta_server.delete_user_data(&root).await?;
         }
         let chats = self.read(|store, _| Ok(store.chats()?)).await?;
         for chat in chats.iter().filter(|c| c.membership != Membership::Left) {

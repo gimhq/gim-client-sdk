@@ -1169,7 +1169,7 @@ public protocol GimClientProtocol: AnyObject, Sendable {
     func createIdentity(displayName: String) async throws  -> String
     
     /**
-     * Deletes the account for good: the app server's data, every chat
+     * Deletes the account for good: the meta server's data, every chat
      * (the user leaves), the account on every hub, then everything on
      * this device as `sign_out` does. Returns the ids of the user's other
      * hubs that could not be reached (their records expire on their own).
@@ -1310,11 +1310,11 @@ public protocol GimClientProtocol: AnyObject, Sendable {
     func removeMember(chatId: String, userId: String) async throws 
     
     /**
-     * Reports a user to the app server's moderators with the messages
+     * Reports a user to the meta server's moderators with the messages
      * `message_ids` (at most 50, from the local history) in plaintext, and
      * an optional `note` (at most 1000 characters). Returns the report id.
      * Does not block: call `block_user` too if wanted. `InvalidInput`
-     * without an app server (`ClientConfig::app_server_url`).
+     * without a meta server (`ClientConfig::meta_server_url`).
      */
     func reportUser(userId: String, reason: ReportReason, note: String?, messageIds: [String]) async throws  -> String
     
@@ -1885,7 +1885,7 @@ open func createIdentity(displayName: String)async throws  -> String  {
 }
     
     /**
-     * Deletes the account for good: the app server's data, every chat
+     * Deletes the account for good: the meta server's data, every chat
      * (the user leaves), the account on every hub, then everything on
      * this device as `sign_out` does. Returns the ids of the user's other
      * hubs that could not be reached (their records expire on their own).
@@ -2341,11 +2341,11 @@ open func removeMember(chatId: String, userId: String)async throws   {
 }
     
     /**
-     * Reports a user to the app server's moderators with the messages
+     * Reports a user to the meta server's moderators with the messages
      * `message_ids` (at most 50, from the local history) in plaintext, and
      * an optional `note` (at most 1000 characters). Returns the report id.
      * Does not block: call `block_user` too if wanted. `InvalidInput`
-     * without an app server (`ClientConfig::app_server_url`).
+     * without a meta server (`ClientConfig::meta_server_url`).
      */
 open func reportUser(userId: String, reason: ReportReason, note: String?, messageIds: [String])async throws  -> String  {
     return
@@ -5056,11 +5056,11 @@ public struct ClientConfig: Equatable, Hashable {
      */
     public var mode: ClientMode?
     /**
-     * Base URL of the gim app server (`http://` or `https://`): the
+     * Base URL of the gim meta server (`http://` or `https://`): the
      * encrypted settings backup and abuse reports. `None`: settings are
      * not backed up and `report_user` fails.
      */
-    public var appServerUrl: String?
+    public var metaServerUrl: String?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -5072,13 +5072,13 @@ public struct ClientConfig: Equatable, Hashable {
          * The process kind; `None` is `ClientMode::App`.
          */mode: ClientMode? = nil, 
         /**
-         * Base URL of the gim app server (`http://` or `https://`): the
+         * Base URL of the gim meta server (`http://` or `https://`): the
          * encrypted settings backup and abuse reports. `None`: settings are
          * not backed up and `report_user` fails.
-         */appServerUrl: String? = nil) {
+         */metaServerUrl: String? = nil) {
         self.serverUrl = serverUrl
         self.mode = mode
-        self.appServerUrl = appServerUrl
+        self.metaServerUrl = metaServerUrl
     }
 
     
@@ -5099,14 +5099,14 @@ public struct FfiConverterTypeClientConfig: FfiConverterRustBuffer {
             try ClientConfig(
                 serverUrl: FfiConverterString.read(from: &buf), 
                 mode: FfiConverterOptionTypeClientMode.read(from: &buf), 
-                appServerUrl: FfiConverterOptionString.read(from: &buf)
+                metaServerUrl: FfiConverterOptionString.read(from: &buf)
         )
     }
 
     public static func write(_ value: ClientConfig, into buf: inout [UInt8]) {
         FfiConverterString.write(value.serverUrl, into: &buf)
         FfiConverterOptionTypeClientMode.write(value.mode, into: &buf)
-        FfiConverterOptionString.write(value.appServerUrl, into: &buf)
+        FfiConverterOptionString.write(value.metaServerUrl, into: &buf)
     }
 }
 
@@ -8900,7 +8900,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_gim_core_checksum_method_gimclient_create_identity() != 56233) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_gim_core_checksum_method_gimclient_delete_account() != 47167) {
+    if (uniffi_gim_core_checksum_method_gimclient_delete_account() != 22928) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_gim_core_checksum_method_gimclient_delete_message() != 40750) {
@@ -8969,7 +8969,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_gim_core_checksum_method_gimclient_remove_member() != 31958) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_gim_core_checksum_method_gimclient_report_user() != 60904) {
+    if (uniffi_gim_core_checksum_method_gimclient_report_user() != 50031) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_gim_core_checksum_method_gimclient_restore_from_recovery() != 59727) {

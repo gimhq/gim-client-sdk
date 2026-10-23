@@ -11,7 +11,7 @@ use gim_base::{BaseError, StateReader};
 use gim_common::{DeviceId, GroupId, MessageId, UserId};
 use gim_sdk::transport::Transport;
 use gim_sdk::{
-    AppServer, Client, ClientBuilder, HttpAppServer, HttpTransport, OutboxSender, RecoveryCode,
+    Client, ClientBuilder, HttpMetaServer, HttpTransport, MetaServer, OutboxSender, RecoveryCode,
     StoreLock, DEFAULT_STORE_LOCK_TIMEOUT, DEVICE_KEY_SECRET_KEY, OUTGOING_DIR,
     PUSH_REGISTRATION_SECRET_KEY, ROOT_KEY_SECRET_KEY, SESSION_SECRET_KEY,
 };
@@ -44,11 +44,11 @@ pub struct ClientConfig {
     /// The process kind; `None` is `ClientMode::App`.
     #[uniffi(default)]
     pub mode: Option<ClientMode>,
-    /// Base URL of the gim app server (`http://` or `https://`): the
+    /// Base URL of the gim meta server (`http://` or `https://`): the
     /// encrypted settings backup and abuse reports. `None`: settings are
     /// not backed up and `report_user` fails.
     #[uniffi(default)]
-    pub app_server_url: Option<String>,
+    pub meta_server_url: Option<String>,
 }
 
 /// What the process creating the client is. See `docs/API.md`, *App
@@ -107,14 +107,14 @@ pub async fn create_client(
     config: ClientConfig,
     hooks: Arc<dyn PlatformHooks>,
 ) -> Result<Arc<GimClient>, GimError> {
-    let app_server = match &config.app_server_url {
+    let meta_server = match &config.meta_server_url {
         Some(url) => Some(
-            Arc::new(HttpAppServer::new(parse_hub_url("app_server_url", url)?)?)
-                as Arc<dyn AppServer>,
+            Arc::new(HttpMetaServer::new(parse_hub_url("meta_server_url", url)?)?)
+                as Arc<dyn MetaServer>,
         ),
         None => None,
     };
-    GimClient::open(config, hooks, app_server, |url| {
+    GimClient::open(config, hooks, meta_server, |url| {
         Ok(Arc::new(HttpTransport::new(url.clone())?) as Arc<dyn Transport>)
     })
     .await
@@ -137,16 +137,16 @@ pub async fn create_client_with_fake_transport(
 }
 
 /// Like [`create_client_with_fake_transport`], with an in-memory fake app
-/// server too (`config.app_server_url` is ignored). Rust only.
+/// server too (`config.meta_server_url` is ignored). Rust only.
 #[cfg(feature = "testing")]
 pub async fn create_client_with_fake_servers(
     config: ClientConfig,
     hooks: Arc<dyn PlatformHooks>,
     transport: gim_sdk::testing::FakeTransport,
-    app_server: gim_sdk::testing::FakeAppServer,
+    meta_server: gim_sdk::testing::FakeMetaServer,
 ) -> Result<Arc<GimClient>, GimError> {
-    let app_server = Arc::new(app_server) as Arc<dyn AppServer>;
-    GimClient::open(config, hooks, Some(app_server), move |_| {
+    let meta_server = Arc::new(meta_server) as Arc<dyn MetaServer>;
+    GimClient::open(config, hooks, Some(meta_server), move |_| {
         Ok(Arc::new(transport) as Arc<dyn Transport>)
     })
     .await
@@ -270,7 +270,7 @@ impl GimClient {
     async fn open(
         config: ClientConfig,
         hooks: Arc<dyn PlatformHooks>,
-        app_server: Option<Arc<dyn AppServer>>,
+        meta_server: Option<Arc<dyn MetaServer>>,
         transport: impl FnOnce(&Url) -> Result<Arc<dyn Transport>, GimError>,
     ) -> Result<Self, GimError> {
         let hooks = Arc::new(Foreign::new(hooks));
@@ -317,8 +317,8 @@ impl GimClient {
         })
         .await??;
         let builder = builder.data_dir(&data_dir);
-        let builder = match app_server {
-            Some(app_server) => builder.app_server(app_server),
+        let builder = match meta_server {
+            Some(meta_server) => builder.meta_server(meta_server),
             None => builder,
         };
         let sdk = builder.build()?;
@@ -859,11 +859,11 @@ impl GimClient {
         Ok(self.sdk()?.unblock_user(&user_id).await?)
     }
 
-    /// Reports a user to the app server's moderators with the messages
+    /// Reports a user to the meta server's moderators with the messages
     /// `message_ids` (at most 50, from the local history) in plaintext, and
     /// an optional `note` (at most 1000 characters). Returns the report id.
     /// Does not block: call `block_user` too if wanted. `InvalidInput`
-    /// without an app server (`ClientConfig::app_server_url`).
+    /// without a meta server (`ClientConfig::meta_server_url`).
     pub async fn report_user(
         &self,
         user_id: String,
@@ -882,7 +882,7 @@ impl GimClient {
             .await?)
     }
 
-    /// Deletes the account for good: the app server's data, every chat
+    /// Deletes the account for good: the meta server's data, every chat
     /// (the user leaves), the account on every hub, then everything on
     /// this device as `sign_out` does. Returns the ids of the user's other
     /// hubs that could not be reached (their records expire on their own).

@@ -104,7 +104,7 @@ pub async fn open_extension(server_url: &str, hooks: &Arc<MemoryHooks>) -> Arc<G
     let config = ClientConfig {
         server_url: server_url.to_string(),
         mode: Some(ClientMode::Extension),
-        app_server_url: None,
+        meta_server_url: None,
     };
     create_client(config, hooks.clone()).await.unwrap()
 }

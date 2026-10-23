@@ -12,7 +12,6 @@
 #![forbid(unsafe_code)]
 
 mod account;
-mod app_server;
 mod auth;
 mod client;
 mod error;
@@ -25,6 +24,7 @@ mod identity;
 mod invites;
 mod link;
 mod media;
+mod meta_server;
 mod outbox;
 mod push;
 pub mod recovery_kit;
@@ -40,10 +40,6 @@ mod sync;
 pub mod testing;
 pub mod transport;
 
-pub use app_server::{
-    AbuseReport, AppServer, ReportReason, ReportedMessage, StoredSlot, MAX_REPORTED_MESSAGES,
-    MAX_REPORT_NOTE, PRIVACY_SLOT,
-};
 pub use client::{
     Client, ClientBuilder, ClientMode, Session, COMMIT_POST_ATTEMPTS, DEVICE_KEY_SECRET_KEY,
     ENROLLMENT_SECRET_KEY, KEY_PACKAGE_BATCH, MAX_COMMIT_RETRIES, ROOT_KEY_SECRET_KEY,
@@ -55,12 +51,16 @@ pub use history::Backfill;
 pub use hosting::{
     HOSTING_RECORD_CHECK_INTERVAL, HOSTING_RECORD_LIFETIME, HOSTING_RECORD_RENEW_BEFORE,
 };
-pub use http::{HttpAppServer, HttpConfig, HttpTransport};
+pub use http::{HttpConfig, HttpMetaServer, HttpTransport};
 pub use hubs::{HubConnector, HubStatus};
 pub use identity::RecoveryRotation;
 pub use invites::INVITE_RETRY_MAX;
 pub use link::{LinkResult, LinkSession, PendingApproval, Sas, LINK_BUNDLE_LIFETIME, LINK_TIMEOUT};
 pub use media::{DOWNLOAD_PIECE, OUTGOING_DIR};
+pub use meta_server::{
+    AbuseReport, MetaServer, ReportReason, ReportedMessage, StoredSlot, MAX_REPORTED_MESSAGES,
+    MAX_REPORT_NOTE, PRIVACY_SLOT,
+};
 pub use outbox::OutboxSender;
 pub use push::{
     NotificationContent, NotificationKind, PushRegistration, GENERIC_BODY,

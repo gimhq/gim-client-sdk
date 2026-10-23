@@ -1,4 +1,4 @@
-//! `HttpAppServer` and the hub's account deletion against mock servers:
+//! `HttpMetaServer` and the hub's account deletion against mock servers:
 //! request shapes, root signatures and error mapping.
 
 use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
@@ -7,7 +7,8 @@ use gim_common::now_ms;
 use gim_identity::{RootKey, RootPublicKey, RootRequestSignature};
 use gim_sdk::transport::{Transport, TransportError};
 use gim_sdk::{
-    AbuseReport, AppServer, HttpAppServer, HttpTransport, ReportReason, ReportedMessage, StoredSlot,
+    AbuseReport, HttpMetaServer, HttpTransport, MetaServer, ReportReason, ReportedMessage,
+    StoredSlot,
 };
 use serde_json::{json, Value};
 use wiremock::matchers::{body_json, method, path};
@@ -61,8 +62,8 @@ fn ok(data: Value) -> ResponseTemplate {
     ResponseTemplate::new(200).set_body_json(json!({ "success": true, "data": data }))
 }
 
-fn app_server(server: &MockServer, prefix: &str) -> HttpAppServer {
-    HttpAppServer::new(format!("{}{prefix}", server.uri()).parse().unwrap()).unwrap()
+fn meta_server(server: &MockServer, prefix: &str) -> HttpMetaServer {
+    HttpMetaServer::new(format!("{}{prefix}", server.uri()).parse().unwrap()).unwrap()
 }
 
 #[tokio::test]
@@ -87,7 +88,7 @@ async fn slots_are_read_and_written_signed() {
         .expect(1)
         .mount(&server)
         .await;
-    let app = app_server(&server, "");
+    let app = meta_server(&server, "");
     assert_eq!(
         app.slot(&root(), "privacy").await.unwrap(),
         Some(StoredSlot {
@@ -118,7 +119,7 @@ async fn a_missing_slot_is_none_and_a_stale_write_a_conflict() {
         })))
         .mount(&server)
         .await;
-    let app = app_server(&server, "");
+    let app = meta_server(&server, "");
     assert_eq!(app.slot(&root(), "privacy").await.unwrap(), None);
     assert!(matches!(
         app.put_slot(&root(), "privacy", 1, b"x").await,
@@ -167,7 +168,7 @@ async fn a_report_and_the_data_deletion_are_signed_below_a_base_path() {
         .expect(1)
         .mount(&server)
         .await;
-    let app = app_server(&server, "/app");
+    let app = meta_server(&server, "/app");
     assert_eq!(app.report(&root(), &report).await.unwrap(), "r1");
     app.delete_user_data(&root()).await.unwrap();
 }

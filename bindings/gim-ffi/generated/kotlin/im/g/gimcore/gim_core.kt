@@ -1539,7 +1539,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if ((lib.uniffi_gim_core_checksum_method_gimclient_create_identity() and 0xFFFF) != 56233) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_gim_core_checksum_method_gimclient_delete_account() and 0xFFFF) != 47167) {
+    if ((lib.uniffi_gim_core_checksum_method_gimclient_delete_account() and 0xFFFF) != 22928) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_gim_core_checksum_method_gimclient_delete_message() and 0xFFFF) != 40750) {
@@ -1608,7 +1608,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if ((lib.uniffi_gim_core_checksum_method_gimclient_remove_member() and 0xFFFF) != 31958) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_gim_core_checksum_method_gimclient_report_user() and 0xFFFF) != 60904) {
+    if ((lib.uniffi_gim_core_checksum_method_gimclient_report_user() and 0xFFFF) != 50031) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_gim_core_checksum_method_gimclient_restore_from_recovery() and 0xFFFF) != 59727) {
@@ -3070,7 +3070,7 @@ public interface GimClientInterface {
     suspend fun `createIdentity`(`displayName`: kotlin.String): kotlin.String
     
     /**
-     * Deletes the account for good: the app server's data, every chat
+     * Deletes the account for good: the meta server's data, every chat
      * (the user leaves), the account on every hub, then everything on
      * this device as `sign_out` does. Returns the ids of the user's other
      * hubs that could not be reached (their records expire on their own).
@@ -3211,11 +3211,11 @@ public interface GimClientInterface {
     suspend fun `removeMember`(`chatId`: kotlin.String, `userId`: kotlin.String)
     
     /**
-     * Reports a user to the app server's moderators with the messages
+     * Reports a user to the meta server's moderators with the messages
      * `message_ids` (at most 50, from the local history) in plaintext, and
      * an optional `note` (at most 1000 characters). Returns the report id.
      * Does not block: call `block_user` too if wanted. `InvalidInput`
-     * without an app server (`ClientConfig::app_server_url`).
+     * without a meta server (`ClientConfig::meta_server_url`).
      */
     suspend fun `reportUser`(`userId`: kotlin.String, `reason`: ReportReason, `note`: kotlin.String?, `messageIds`: List<kotlin.String>): kotlin.String
     
@@ -3937,7 +3937,7 @@ open class GimClient: Disposable, AutoCloseable, GimClientInterface
 
     
     /**
-     * Deletes the account for good: the app server's data, every chat
+     * Deletes the account for good: the meta server's data, every chat
      * (the user leaves), the account on every hub, then everything on
      * this device as `sign_out` does. Returns the ids of the user's other
      * hubs that could not be reached (their records expire on their own).
@@ -4546,11 +4546,11 @@ open class GimClient: Disposable, AutoCloseable, GimClientInterface
 
     
     /**
-     * Reports a user to the app server's moderators with the messages
+     * Reports a user to the meta server's moderators with the messages
      * `message_ids` (at most 50, from the local history) in plaintext, and
      * an optional `note` (at most 1000 characters). Returns the report id.
      * Does not block: call `block_user` too if wanted. `InvalidInput`
-     * without an app server (`ClientConfig::app_server_url`).
+     * without a meta server (`ClientConfig::meta_server_url`).
      */
     @Throws(GimException::class)
     @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
@@ -8575,11 +8575,11 @@ data class ClientConfig (
     var `mode`: ClientMode? = null 
     , 
     /**
-     * Base URL of the gim app server (`http://` or `https://`): the
+     * Base URL of the gim meta server (`http://` or `https://`): the
      * encrypted settings backup and abuse reports. `None`: settings are
      * not backed up and `report_user` fails.
      */
-    var `appServerUrl`: kotlin.String? = null 
+    var `metaServerUrl`: kotlin.String? = null 
     
 ){
     
@@ -8605,13 +8605,13 @@ public object FfiConverterTypeClientConfig: FfiConverterRustBuffer<ClientConfig>
     override fun allocationSize(value: ClientConfig) = (
             FfiConverterString.allocationSize(value.`serverUrl`) +
             FfiConverterOptionalTypeClientMode.allocationSize(value.`mode`) +
-            FfiConverterOptionalString.allocationSize(value.`appServerUrl`)
+            FfiConverterOptionalString.allocationSize(value.`metaServerUrl`)
     )
 
     override fun write(value: ClientConfig, buf: ByteBuffer) {
             FfiConverterString.write(value.`serverUrl`, buf)
             FfiConverterOptionalTypeClientMode.write(value.`mode`, buf)
-            FfiConverterOptionalString.write(value.`appServerUrl`, buf)
+            FfiConverterOptionalString.write(value.`metaServerUrl`, buf)
     }
 }
 

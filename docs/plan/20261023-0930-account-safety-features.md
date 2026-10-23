@@ -18,8 +18,8 @@ not offer yet. Where each one has to change:
 | Mute, pin, archive | `gim-base` `Chat` fields; `SelfChatSettings` envelope to sync own devices | store migration, chat list order and filter, push suppression in `process_push`, FFI | none |
 | Read-receipt and typing switches | `SelfPreferences` envelope | preference store, stop sending (and, as in Signal, stop showing) when off, FFI | none |
 | Block | `SelfPreferences` carries the block list | client-side only: refuse (leave) direct chats and invites from blocked users, drop and hide their messages, never add them, FFI | none |
-| Report | none | collect the chosen messages' plaintext from the local timeline and send it to the app server, FFI | none |
-| Account deletion | `gim-identity`: root-key-signed deletion request (`gim/account-deletion/v1`) | leave every chat, delete on every hub of the hosting record, delete the app-server data, wipe locally, FFI | `DELETE /v2/users/{id}` with the signed request: removes the account's records (device list, handle, KeyPackages, backup, hosting entry, push registration, queued events and messages) |
+| Report | none | collect the chosen messages' plaintext from the local timeline and send it to the meta server, FFI | none |
+| Account deletion | `gim-identity`: root-key-signed deletion request (`gim/account-deletion/v1`) | leave every chat, delete on every hub of the hosting record, delete the meta-server data, wipe locally, FFI | `DELETE /v2/users/{id}` with the signed request: removes the account's records (device list, handle, KeyPackages, backup, hosting entry, push registration, queued events and messages) |
 
 Design rules (user, 2026-10-23):
 
@@ -27,11 +27,11 @@ Design rules (user, 2026-10-23):
   learns block lists, mute or privacy settings. Its only addition here is
   deleting a deleted account's records.
 - User data that must outlive the devices (block list, chat settings,
-  privacy switches, later contacts) lives on a separate **app server** as
+  privacy switches, later contacts) lives on a separate **meta server** as
   ciphertext only, encrypted with a key derived from the root key; clients
   read and write it, the server cannot read it (comparable to Signal's
-  storage service). Reports go to the app server as well, not to the hub.
-- Until the app server exists, own devices stay in sync through the self
+  storage service). Reports go to the meta server as well, not to the hub.
+- Until the meta server exists, own devices stay in sync through the self
   group (MLS-encrypted), which already works without any server state.
 
 ## Proposal
@@ -55,38 +55,38 @@ unarchive.
 
 Phase B (servers):
 
-5. App server: a new service storing per-user encrypted blobs (authenticated
+5. Meta server: a new service storing per-user encrypted blobs (authenticated
    by a device-key signature or hub token, versioned writes), plus a report
    inbox for moderators. The SDK backs up and restores the Phase A state
    there, so a restore from the recovery key brings blocks and settings back.
-6. Reports through the app server.
+6. Reports through the meta server.
 7. Account deletion: the hub endpoint, the SDK flow, and deleting the
-   app-server data.
+   meta-server data.
 
 Phase B status: code done, deployment pending.
 
 - Core `259c8cf`: root-signed HTTP requests (`gim/root-request/v1`,
   `RootKey::sign_request`, shared vectors) and `StorageKey` (HKDF of the
   root seed, AES-256-GCM, slot name as AAD).
-- App server: new repository gimhq/gim-app on zzci/bun-tpl for Cloudflare
+- Meta server: new repository gimhq/gim-meta on zzci/bun-tpl for Cloudflare
   Workers, module `gim` (slots with versioned writes, reports, data
   deletion, moderator inbox). It authenticates by the root signature
   alone, so it holds no accounts. Not deployed yet: it needs Cloudflare
   credentials.
 - Hub `fa000fb`: `DELETE /v2/users/{user_id}`, root-signed. Group rosters
   are kept, so MLS roster checks stay valid.
-- SDK: `AppServer` (`HttpAppServer`, `FakeAppServer`),
-  `ClientBuilder::app_server`, the privacy backup in slot `privacy`
+- SDK: `MetaServer` (`HttpMetaServer`, `FakeMetaServer`),
+  `ClientBuilder::meta_server`, the privacy backup in slot `privacy`
   (written after each change, read back by `restore_from_recovery`),
   `report_user`, `delete_account`, and `Transport::delete_user`. FFI adds
-  `ClientConfig.app_server_url`, `reportUser`, `deleteAccount` and
+  `ClientConfig.meta_server_url`, `reportUser`, `deleteAccount` and
   `ReportReason`.
 
 Phase B findings:
 
 - Only the privacy settings are backed up. Chat settings refer to chats
   that a fully restored device has not rejoined yet.
-- Account deletion deletes the app-server data first and the home hub
+- Account deletion deletes the meta-server data first and the home hub
   account last. A failure in either step leaves local data intact, so the
   call can be retried.
 
@@ -100,13 +100,13 @@ change regenerates the bindings and documents the API in `docs/API.md`.
 - Client-side blocking cannot stop a blocked user from adding this user to
   a group (the hub stays unaware); the client then leaves such a direct chat
   at once and hides the blocked user's messages in groups.
-- Reports carry plaintext the reporter discloses; the app server cannot
+- Reports carry plaintext the reporter discloses; the meta server cannot
   verify it (no message franking).
-- The app server is a new service and repository; its name, hosting and
+- The meta server is a new service and repository; its name, hosting and
   moderation workflow need a separate plan.
 - Account deletion is irreversible: confirm in the UI, sign with the root key.
 
 ## Scope
 
-In: the seven items above across gim-core, gim-client-sdk, gim-hub (account deletion only) and a new app server.
+In: the seven items above across gim-core, gim-client-sdk, gim-hub (account deletion only) and a new meta server.
 Out: Android and iOS UI (their own campaigns consume the SDK release).

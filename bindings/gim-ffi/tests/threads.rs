@@ -42,7 +42,7 @@ async fn cycle(transport: &FakeTransport) {
     let config = ClientConfig {
         server_url: "https://gim.example.org".to_string(),
         mode: None,
-        app_server_url: None,
+        meta_server_url: None,
     };
     let hooks = Arc::new(Hooks(tempfile::tempdir().unwrap()));
     let client = create_client_with_fake_transport(config, hooks, transport.clone())
