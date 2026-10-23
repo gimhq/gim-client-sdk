@@ -22,9 +22,9 @@ mod secrets;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 
-use crate::commands::{account, chats, listen, media, messages, wait_for};
+use crate::commands::{account, chats, listen, media, messages, settings, wait_for};
 use crate::error::{exit_codes_help, CliError, Result, EXIT_OK, EXIT_USAGE};
 use crate::output::{print_error, Output};
 use crate::profile::Ctx;
@@ -68,14 +68,60 @@ const TYPING_ABOUT: &str = "Typing indicators expire on their own; --stop only t
 
 #[derive(Debug, Subcommand)]
 enum Command {
-    /// Create a new identity with this device and claim a handle
-    /// (requires --server); prints the recovery code once.
+    /// Create an account on --server with this device and a username;
+    /// prints the recovery kit (Account ID and recovery key) once.
     Register {
+        /// Username.
         handle: String,
         display_name: String,
     },
-    /// Show this profile's user and device.
+    /// Bring an account back on this new profile from its recovery kit
+    /// (requires --server). Your other devices are removed unless
+    /// --keep-devices.
+    Restore {
+        /// File with the recovery kit text, in any language; `-` reads it
+        /// from stdin.
+        #[arg(long, value_name = "FILE")]
+        kit_file: Option<PathBuf>,
+        /// Account ID (instead of, or overriding, the kit).
+        #[arg(long, value_name = "ID")]
+        account_id: Option<String>,
+        /// Recovery key (instead of, or overriding, the kit).
+        #[arg(long, value_name = "KEY")]
+        recovery_key: Option<String>,
+        /// Keep the account's other devices.
+        #[arg(long)]
+        keep_devices: bool,
+    },
+    /// Add this new profile as a device of an account (requires --server):
+    /// prints a link code for `gim devices add` on a device of the account.
+    Link {
+        /// Do not ask whether the security codes match.
+        #[arg(long)]
+        yes: bool,
+    },
+    /// Show this profile's account and device.
     Whoami,
+    /// Your name and username.
+    #[command(subcommand)]
+    Profile(ProfileCommand),
+    /// The devices of your account.
+    #[command(subcommand)]
+    Devices(DevicesCommand),
+    /// The servers your account uses.
+    #[command(subcommand)]
+    Servers(ServersCommand),
+    /// Your recovery key.
+    #[command(subcommand, name = "recovery-key")]
+    RecoveryKey(RecoveryKeyCommand),
+    /// Read receipts, typing indicators and blocked users.
+    #[command(subcommand)]
+    Privacy(PrivacyCommand),
+    /// Block a user (username or Account ID): their messages and invites
+    /// are dropped.
+    Block { user: String },
+    /// Unblock a user.
+    Unblock { user: String },
     /// Look up users.
     #[command(subcommand)]
     Users(UsersCommand),
@@ -173,6 +219,104 @@ enum UsersCommand {
 enum ChatsCommand {
     /// List all chats, most recent first.
     List,
+    /// Turn off notifications for a chat, for good or until a time.
+    Mute {
+        chat: String,
+        /// Until this Unix time in milliseconds.
+        #[arg(long, value_name = "MS")]
+        until_ms: Option<u64>,
+    },
+    /// Turn notifications for a chat back on.
+    Unmute {
+        chat: String,
+    },
+    /// Keep a chat at the top of the list.
+    Pin {
+        chat: String,
+    },
+    Unpin {
+        chat: String,
+    },
+    /// Move a chat to the archive.
+    Archive {
+        chat: String,
+    },
+    /// Move a chat out of the archive.
+    Unarchive {
+        chat: String,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum ProfileCommand {
+    /// Show your account (like `whoami`).
+    Show,
+    /// Change your name.
+    Name { name: String },
+    /// Your username.
+    #[command(subcommand)]
+    Username(UsernameCommand),
+}
+
+#[derive(Debug, Subcommand)]
+enum UsernameCommand {
+    /// Pick a username, or change it.
+    Set { username: String },
+    /// Remove your username.
+    Remove,
+}
+
+#[derive(Debug, Subcommand)]
+enum DevicesCommand {
+    /// List your devices.
+    List,
+    /// Add a new device: the link code is what `gim link` printed there.
+    Add {
+        link_code: String,
+        /// Do not ask whether the security codes match.
+        #[arg(long)]
+        yes: bool,
+    },
+    /// Remove a device: it can no longer use your account.
+    Remove { device_id: String },
+}
+
+#[derive(Debug, Subcommand)]
+enum ServersCommand {
+    /// List your servers.
+    List,
+    /// Add a server by its address.
+    Add { url: String },
+    /// Remove a server (its id, from `servers list`).
+    Remove {
+        server_id: String,
+        /// Also when group chats live on it (their members lose them).
+        #[arg(long)]
+        remove_groups: bool,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum RecoveryKeyCommand {
+    /// Make a new recovery key and print the new recovery kit; the old key
+    /// stops working.
+    Change,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum Switch {
+    On,
+    Off,
+}
+
+#[derive(Debug, Subcommand)]
+enum PrivacyCommand {
+    /// Show the privacy settings.
+    Show,
+    /// Send read receipts (and see those of others).
+    ReadReceipts { state: Switch },
+    /// Send typing indicators (and see those of others).
+    Typing { state: Switch },
 }
 
 #[derive(Debug, Subcommand)]
@@ -242,16 +386,78 @@ async fn run(cli: Cli) -> Result<Output> {
     {
         return account::register(&dir, server, handle, display_name).await;
     }
+    let command = match cli.command {
+        Command::Restore {
+            kit_file,
+            account_id,
+            recovery_key,
+            keep_devices,
+        } => {
+            let args = account::RestoreArgs {
+                kit_file,
+                account_id,
+                recovery_key,
+                keep_devices,
+            };
+            return account::restore(&dir, server, args).await;
+        }
+        Command::Link { yes } => return account::link(&dir, server, yes).await,
+        command => command,
+    };
     let ctx = Ctx::connect(&dir, server).await?;
-    let output = dispatch(&ctx, cli.command, cli.json).await?;
+    let output = dispatch(&ctx, command, cli.json).await?;
     ctx.client.flush_outbox().await?;
     Ok(output)
 }
 
 async fn dispatch(ctx: &Ctx, command: Command, json: bool) -> Result<Output> {
     match command {
-        Command::Register { .. } => unreachable!("handled before connecting"),
-        Command::Whoami => account::whoami(ctx),
+        Command::Register { .. } | Command::Restore { .. } | Command::Link { .. } => {
+            unreachable!("handled before connecting")
+        }
+        Command::Whoami | Command::Profile(ProfileCommand::Show) => account::whoami(ctx),
+        Command::Profile(ProfileCommand::Name { name }) => settings::set_name(ctx, &name).await,
+        Command::Profile(ProfileCommand::Username(UsernameCommand::Set { username })) => {
+            settings::set_username(ctx, &username).await
+        }
+        Command::Profile(ProfileCommand::Username(UsernameCommand::Remove)) => {
+            settings::remove_username(ctx).await
+        }
+        Command::Devices(DevicesCommand::List) => settings::devices(ctx).await,
+        Command::Devices(DevicesCommand::Add { link_code, yes }) => {
+            settings::add_device(ctx, &link_code, yes).await
+        }
+        Command::Devices(DevicesCommand::Remove { device_id }) => {
+            settings::remove_device(ctx, &device_id).await
+        }
+        Command::Servers(ServersCommand::List) => settings::servers(ctx).await,
+        Command::Servers(ServersCommand::Add { url }) => settings::add_server(ctx, &url).await,
+        Command::Servers(ServersCommand::Remove {
+            server_id,
+            remove_groups,
+        }) => settings::remove_server(ctx, &server_id, remove_groups).await,
+        Command::RecoveryKey(RecoveryKeyCommand::Change) => {
+            settings::rotate_recovery_key(ctx).await
+        }
+        Command::Privacy(PrivacyCommand::Show) => settings::privacy(ctx).await,
+        Command::Privacy(PrivacyCommand::ReadReceipts { state }) => {
+            settings::set_read_receipts(ctx, matches!(state, Switch::On)).await
+        }
+        Command::Privacy(PrivacyCommand::Typing { state }) => {
+            settings::set_typing(ctx, matches!(state, Switch::On)).await
+        }
+        Command::Block { user } => settings::block(ctx, &user, true).await,
+        Command::Unblock { user } => settings::block(ctx, &user, false).await,
+        Command::Chats(ChatsCommand::Mute { chat, until_ms }) => {
+            settings::mute(ctx, &chat, until_ms).await
+        }
+        Command::Chats(ChatsCommand::Unmute { chat }) => settings::mute(ctx, &chat, Some(0)).await,
+        Command::Chats(ChatsCommand::Pin { chat }) => settings::pin(ctx, &chat, true).await,
+        Command::Chats(ChatsCommand::Unpin { chat }) => settings::pin(ctx, &chat, false).await,
+        Command::Chats(ChatsCommand::Archive { chat }) => settings::archive(ctx, &chat, true).await,
+        Command::Chats(ChatsCommand::Unarchive { chat }) => {
+            settings::archive(ctx, &chat, false).await
+        }
         Command::Users(UsersCommand::Search { query }) => account::search_users(ctx, &query).await,
         Command::Chats(ChatsCommand::List) => chats::list(ctx),
         Command::Dm { handle } => chats::dm(ctx, &handle).await,
@@ -312,7 +518,16 @@ mod tests {
         let help = Cli::command().render_long_help().to_string();
         for name in [
             "register",
+            "restore",
+            "link",
             "whoami",
+            "profile",
+            "devices",
+            "servers",
+            "recovery-key",
+            "privacy",
+            "block",
+            "unblock",
             "users",
             "chats",
             "dm",

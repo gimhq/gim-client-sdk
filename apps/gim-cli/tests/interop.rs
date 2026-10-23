@@ -99,7 +99,21 @@ impl Gim {
             "{out}"
         );
         gim.user_id = out["user_id"].as_str().expect("user_id").to_string();
+        let kit = out["recovery_kit"].as_str().expect("recovery_kit");
+        assert!(
+            kit.contains(&format!("Account ID: {}", gim.user_id)),
+            "{kit}"
+        );
         gim
+    }
+
+    /// A profile without an account yet.
+    fn empty() -> Self {
+        Self {
+            handle: String::new(),
+            user_id: String::new(),
+            dir: TempDir::new().unwrap(),
+        }
     }
 
     fn profile(&self) -> PathBuf {
@@ -217,6 +231,7 @@ fn cli_to_cli_interop() {
     listen(&bob, &carol);
     wait_for_new_chat(&server, &alice);
     exit_codes(&alice);
+    account_and_settings(&server, &alice, &bob, &carol);
 }
 
 #[test]
@@ -479,6 +494,121 @@ fn exit_codes(alice: &Gim) {
         EXIT_TIMEOUT,
     );
     assert_eq!(err["error"]["code"], "timeout", "{err}");
+}
+
+/// Profile, privacy and chat settings, devices, servers, the recovery kit
+/// and linking.
+fn account_and_settings(server: &str, alice: &Gim, bob: &Gim, carol: &Gim) {
+    alice.ok(&["profile", "name", "Alice Doe"]);
+    let me = alice.ok(&["profile", "show"]);
+    assert_eq!(me["display_name"], "Alice Doe", "{me}");
+
+    let renamed = unique_handle("carol_new");
+    carol.ok(&["profile", "username", "set", &renamed]);
+    assert_eq!(carol.ok(&["whoami"])["handle"], renamed.as_str());
+    let found = alice.ok(&["users", "search", &renamed]);
+    assert_eq!(
+        found["users"][0]["user_id"],
+        carol.user_id.as_str(),
+        "{found}"
+    );
+    let gone = alice.ok(&["users", "search", &carol.handle]);
+    assert_eq!(gone["users"], serde_json::json!([]), "{gone}");
+    carol.ok(&["profile", "username", "remove"]);
+    carol.fail(&["profile", "username", "remove"], 2);
+
+    alice.ok(&["privacy", "read-receipts", "off"]);
+    alice.ok(&["privacy", "typing", "off"]);
+    alice.ok(&["block", &bob.handle]);
+    let privacy = alice.ok(&["privacy", "show"]);
+    assert_eq!(privacy["read_receipts"], false, "{privacy}");
+    assert_eq!(privacy["typing_indicators"], false, "{privacy}");
+    assert_eq!(
+        privacy["blocked_user_ids"],
+        serde_json::json!([bob.user_id]),
+        "{privacy}"
+    );
+    alice.ok(&["unblock", &bob.handle]);
+    alice.ok(&["privacy", "read-receipts", "on"]);
+
+    let chat = chat_of(&alice.ok(&["dm", &bob.handle]));
+    for args in [
+        &["chats", "mute", &chat][..],
+        &["chats", "unmute", &chat],
+        &["chats", "pin", &chat],
+        &["chats", "archive", &chat],
+        &["chats", "unarchive", &chat],
+    ] {
+        assert_eq!(chat_of(&alice.ok(args)), chat);
+    }
+
+    let servers = alice.ok(&["servers", "list"]);
+    assert_eq!(servers["servers"][0]["home"], true, "{servers}");
+
+    // A new recovery key restores the account on a new profile.
+    let rotated = alice.ok(&["recovery-key", "change"]);
+    let kit = rotated["recovery_kit"].as_str().unwrap();
+    let restored = Gim::empty();
+    let kit_file = restored.dir.path().join("kit.txt");
+    std::fs::write(&kit_file, format!("my kit:\n\n{kit}")).unwrap();
+    let out = restored.ok(&[
+        "--server",
+        server,
+        "restore",
+        "--kit-file",
+        path_str(&kit_file),
+        "--keep-devices",
+    ]);
+    assert_eq!(out["user_id"], alice.user_id.as_str(), "{out}");
+    let restored_device = out["device_id"].as_str().unwrap().to_string();
+
+    // A device linked from alice's.
+    let linked = Gim::empty();
+    let mut child = linked
+        .command(&["--server", server, "link", "--yes"])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut stderr = BufReader::new(child.stderr.take().unwrap());
+    let code = loop {
+        let mut line = String::new();
+        assert_ne!(
+            stderr.read_line(&mut line).unwrap(),
+            0,
+            "gim link ended early"
+        );
+        if let Some(rest) = line.trim().strip_prefix("gim devices add '") {
+            break rest.trim_end_matches('\'').to_string();
+        }
+    };
+    alice.ok(&["devices", "add", &code, "--yes"]);
+    let out = child.wait_with_output().unwrap();
+    assert!(out.status.success(), "gim link: {}", out.status);
+    let linked_out: Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(
+        linked_out["user_id"],
+        alice.user_id.as_str(),
+        "{linked_out}"
+    );
+
+    let devices = alice.ok(&["devices", "list"]);
+    let active: Vec<&Value> = devices["devices"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|d| d["revoked"] == false)
+        .collect();
+    assert_eq!(active.len(), 3, "{devices}");
+    alice.ok(&["devices", "remove", &restored_device]);
+    let devices = alice.ok(&["devices", "list"]);
+    let removed = devices["devices"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|d| d["device_id"] == restored_device.as_str())
+        .unwrap();
+    assert_eq!(removed["revoked"], true, "{devices}");
 }
 
 fn path_str(path: &Path) -> &str {

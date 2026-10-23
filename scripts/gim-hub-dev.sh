@@ -50,7 +50,7 @@ Arguments:
   run     Id of a federation run, unique per concurrent run.
 
 Env:
-  GIM_HUB_SRC      gim-hub git checkout (default /srv/gimhq/im-client/hub)
+  GIM_HUB_SRC      gim-hub git checkout (default /srv/gimhq/gim-hub)
   GIM_HUB_REV      commit to build (default
                    0d756b9e1f7f604f3daa39b4286e83a6ef435d54); exported with
                    `git archive`, so local changes in the checkout are ignored
@@ -74,7 +74,7 @@ EOF
 }
 
 repo=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-GIM_HUB_SRC=${GIM_HUB_SRC:-/srv/gimhq/im-client/hub}
+GIM_HUB_SRC=${GIM_HUB_SRC:-/srv/gimhq/gim-hub}
 GIM_HUB_REV=${GIM_HUB_REV:-0d756b9e1f7f604f3daa39b4286e83a6ef435d54}
 GIM_HUB_IMAGE=${GIM_HUB_IMAGE:-ai-agent/gim-hub}
 GIM_HUB_NETWORK=${GIM_HUB_NETWORK:-traefik}

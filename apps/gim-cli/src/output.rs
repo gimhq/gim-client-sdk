@@ -6,7 +6,22 @@
 //!
 //! - error: `{"error": {"code": "other"|"usage"|"timeout"|"not_found"|"server",
 //!   "message": str}}`
-//! - `register`: `{"user_id", "device_id", "handle", "server", "recovery_code"}`
+//! - `register`: `{"user_id", "device_id", "handle", "server", "recovery_code",
+//!   "recovery_kit"}` (`recovery_kit`: the kit text with English labels)
+//! - `restore`, `link`: `{"user_id", "device_id", "server"}`
+//! - `profile name`, `profile username set|remove`, `devices remove`,
+//!   `servers remove`, `privacy read-receipts|typing`: `{}`
+//! - `profile show`: as `whoami`
+//! - `devices list`: `{"devices": [{"device_id", "created_at_ms", "is_current",
+//!   "revoked"}]}`; `devices add`: `{"device_id"}`
+//! - `servers list`: `{"servers": [{"hub_id", "url": str|null, "state":
+//!   "verified"|"unverified"|"removed", "priority", "home", "signed_in"}]}`;
+//!   `servers add`: `{"hub_id"}`
+//! - `recovery-key change`: `{"user_id", "recovery_code", "recovery_kit",
+//!   "unsynced_hub_ids": [str]}`
+//! - `privacy show`: `{"read_receipts", "typing_indicators",
+//!   "blocked_user_ids": [str]}`; `block`, `unblock`: `{"user_id"}`
+//! - `chats mute|unmute|pin|unpin|archive|unarchive`: `{"chat_id"}`
 //! - `whoami`: `{"user_id", "device_id", "handle", "display_name", "server"}`
 //!   (`handle` / `display_name` may be `null`)
 //! - `users search`: `{"users": [User]}`, User = `{"user_id", "handle",

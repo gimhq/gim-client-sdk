@@ -6,6 +6,7 @@ pub mod chats;
 pub mod listen;
 pub mod media;
 pub mod messages;
+pub mod settings;
 pub mod wait_for;
 
 use gim_base::StateReader;
