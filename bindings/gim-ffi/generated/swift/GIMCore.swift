@@ -5491,17 +5491,27 @@ public struct MessagePreview: Equatable, Hashable {
     public var text: String
     public var sentAtMs: UInt64
     public var isOwn: Bool
+    /**
+     * Delivery state of an own message, for the ticks of the row (as
+     * `MessageItem.send_state`); `None` for messages from others.
+     */
+    public var sendState: SendState?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
     public init(senderName: String, 
         /**
          * Plain-text rendering ("Photo", "File: report.pdf" for media).
-         */text: String, sentAtMs: UInt64, isOwn: Bool) {
+         */text: String, sentAtMs: UInt64, isOwn: Bool, 
+        /**
+         * Delivery state of an own message, for the ticks of the row (as
+         * `MessageItem.send_state`); `None` for messages from others.
+         */sendState: SendState?) {
         self.senderName = senderName
         self.text = text
         self.sentAtMs = sentAtMs
         self.isOwn = isOwn
+        self.sendState = sendState
     }
 
     
@@ -5523,7 +5533,8 @@ public struct FfiConverterTypeMessagePreview: FfiConverterRustBuffer {
                 senderName: FfiConverterString.read(from: &buf), 
                 text: FfiConverterString.read(from: &buf), 
                 sentAtMs: FfiConverterUInt64.read(from: &buf), 
-                isOwn: FfiConverterBool.read(from: &buf)
+                isOwn: FfiConverterBool.read(from: &buf), 
+                sendState: FfiConverterOptionTypeSendState.read(from: &buf)
         )
     }
 
@@ -5532,6 +5543,7 @@ public struct FfiConverterTypeMessagePreview: FfiConverterRustBuffer {
         FfiConverterString.write(value.text, into: &buf)
         FfiConverterUInt64.write(value.sentAtMs, into: &buf)
         FfiConverterBool.write(value.isOwn, into: &buf)
+        FfiConverterOptionTypeSendState.write(value.sendState, into: &buf)
     }
 }
 

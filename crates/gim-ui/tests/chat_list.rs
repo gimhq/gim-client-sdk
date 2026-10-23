@@ -6,7 +6,7 @@ use std::time::Duration;
 use common::{apply, next, Device};
 use gim_proto::envelope::Content;
 use gim_sdk::testing::FakeTransport;
-use gim_ui::{ChatKind, ChatListService, VectorDiff};
+use gim_ui::{ChatKind, ChatListService, SendState, VectorDiff};
 
 fn pause() {
     // Distinct `updated_at_ms` values.
@@ -58,6 +58,7 @@ async fn ordered_by_update_with_minimal_diffs() {
         ),
         ("Alice", "hello", false)
     );
+    assert_eq!(preview.send_state, None);
     // The creator shares the name with the joiners.
     assert_eq!(items[0].name, "trip");
     assert_eq!(items[0].kind, ChatKind::Group);
@@ -110,4 +111,43 @@ async fn ordered_by_update_with_minimal_diffs() {
     .await;
     assert_eq!(items.len(), 2);
     assert_eq!(items[1].chat_id, with_alice);
+}
+
+/// The preview of an own last message carries its send state, which
+/// follows the receipts like the timeline ticks.
+#[tokio::test]
+async fn own_last_message_shows_its_send_state() {
+    let transport = FakeTransport::new();
+    let alice = Device::register(&transport, "alice", "Alice").await;
+    let bob = Device::register(&transport, "bob", "Bob").await;
+    let chat = alice
+        .client
+        .create_direct_chat(&bob.user_id())
+        .await
+        .unwrap();
+    alice.send_text(&chat, "hello").await;
+
+    let service = ChatListService::new(&alice.client).await.unwrap();
+    let (mut items, stream) = service.entries();
+    let mut stream = pin!(stream);
+    let preview = items[0].last_message.as_ref().unwrap();
+    assert!(preview.is_own);
+    assert!(
+        matches!(
+            preview.send_state,
+            Some(SendState::Pending | SendState::Sent)
+        ),
+        "{preview:?}"
+    );
+
+    bob.sync().await;
+    bob.client.mark_read(&chat).await.unwrap();
+    alice.sync().await;
+    common::wait_until(&mut stream, &mut items, |items| {
+        items[0]
+            .last_message
+            .as_ref()
+            .is_some_and(|m| m.send_state == Some(SendState::Read))
+    })
+    .await;
 }

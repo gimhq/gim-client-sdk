@@ -81,6 +81,9 @@ pub struct MessagePreview {
     pub text: String,
     pub sent_at_ms: u64,
     pub is_own: bool,
+    /// Delivery state of an own message, as in the timeline; `None` for
+    /// messages from others.
+    pub send_state: Option<SendState>,
 }
 
 /// One row of a chat timeline.
@@ -276,6 +279,7 @@ pub(crate) fn chat_list_item<R: StateReader + ?Sized>(
                 text: preview_text(&message),
                 sent_at_ms: message.sent_at_ms,
                 is_own: &message.sender.user_id == own,
+                send_state: send_state(store, &message)?,
             }),
             None => None,
         },

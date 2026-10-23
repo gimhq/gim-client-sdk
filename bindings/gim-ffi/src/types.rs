@@ -136,6 +136,9 @@ pub struct MessagePreview {
     pub text: String,
     pub sent_at_ms: u64,
     pub is_own: bool,
+    /// Delivery state of an own message, for the ticks of the row (as
+    /// `MessageItem.send_state`); `None` for messages from others.
+    pub send_state: Option<SendState>,
 }
 
 /// One row of a chat timeline.

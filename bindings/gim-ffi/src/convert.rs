@@ -139,6 +139,7 @@ impl From<gim_ui::MessagePreview> for MessagePreview {
             text: p.text,
             sent_at_ms: p.sent_at_ms,
             is_own: p.is_own,
+            send_state: p.send_state.map(Into::into),
         }
     }
 }

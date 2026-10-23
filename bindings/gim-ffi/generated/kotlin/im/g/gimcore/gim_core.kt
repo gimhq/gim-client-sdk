@@ -8911,6 +8911,12 @@ data class MessagePreview (
     var `sentAtMs`: kotlin.ULong
     , 
     var `isOwn`: kotlin.Boolean
+    , 
+    /**
+     * Delivery state of an own message, for the ticks of the row (as
+     * `MessageItem.send_state`); `None` for messages from others.
+     */
+    var `sendState`: SendState?
     
 ){
     
@@ -8931,6 +8937,7 @@ public object FfiConverterTypeMessagePreview: FfiConverterRustBuffer<MessagePrev
             FfiConverterString.read(buf),
             FfiConverterULong.read(buf),
             FfiConverterBoolean.read(buf),
+            FfiConverterOptionalTypeSendState.read(buf),
         )
     }
 
@@ -8938,7 +8945,8 @@ public object FfiConverterTypeMessagePreview: FfiConverterRustBuffer<MessagePrev
             FfiConverterString.allocationSize(value.`senderName`) +
             FfiConverterString.allocationSize(value.`text`) +
             FfiConverterULong.allocationSize(value.`sentAtMs`) +
-            FfiConverterBoolean.allocationSize(value.`isOwn`)
+            FfiConverterBoolean.allocationSize(value.`isOwn`) +
+            FfiConverterOptionalTypeSendState.allocationSize(value.`sendState`)
     )
 
     override fun write(value: MessagePreview, buf: ByteBuffer) {
@@ -8946,6 +8954,7 @@ public object FfiConverterTypeMessagePreview: FfiConverterRustBuffer<MessagePrev
             FfiConverterString.write(value.`text`, buf)
             FfiConverterULong.write(value.`sentAtMs`, buf)
             FfiConverterBoolean.write(value.`isOwn`, buf)
+            FfiConverterOptionalTypeSendState.write(value.`sendState`, buf)
     }
 }
 
