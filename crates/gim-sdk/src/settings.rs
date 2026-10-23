@@ -107,6 +107,7 @@ impl<S: StateStore + 'static> Client<S> {
             })
             .await?;
         self.emit(&[StateChange::PrivacyChanged(privacy.clone())]);
+        self.back_up_privacy(&privacy).await;
         self.send_to_self_group(privacy_content(&privacy)).await
     }
 

@@ -21,6 +21,7 @@ use gim_proto::envelope::Content;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{broadcast, Mutex, Notify};
 
+use crate::app_server::AppServer;
 use crate::hubs::{http_connector, HubConnector, HubHandle, StoredSession};
 use crate::identity::merge_directory_user;
 use crate::invites::{load_pending_invites, PendingInvites};
@@ -123,6 +124,7 @@ pub struct ClientBuilder<S> {
     data_dir: Option<PathBuf>,
     sync_settings: SyncSettings,
     hub_connector: Option<HubConnector>,
+    app_server: Option<Arc<dyn AppServer>>,
     mode: ClientMode,
     store_lock_timeout: Duration,
 }
@@ -140,6 +142,7 @@ impl<S: StateStore + 'static> ClientBuilder<S> {
             data_dir: None,
             sync_settings: SyncSettings::default(),
             hub_connector: None,
+            app_server: None,
             mode: ClientMode::App,
             store_lock_timeout: DEFAULT_STORE_LOCK_TIMEOUT,
         }
@@ -271,6 +274,14 @@ impl<S: StateStore + 'static> ClientBuilder<S> {
         self
     }
 
+    /// The gim app server: keeps the encrypted settings backup and takes
+    /// abuse reports. Without one, settings are not backed up and
+    /// [`Client::report_user`] fails.
+    pub fn app_server(mut self, app_server: Arc<dyn AppServer>) -> Self {
+        self.app_server = Some(app_server);
+        self
+    }
+
     /// App-private directory; temporary media files (encrypted uploads,
     /// partial downloads) go to its `tmp` subdirectory. Required.
     pub fn data_dir(mut self, dir: impl Into<PathBuf>) -> Self {
@@ -337,6 +348,7 @@ impl<S: StateStore + 'static> ClientBuilder<S> {
                 invite_wake: Notify::new(),
                 commit_retry_at: Default::default(),
                 hub_connector: self.hub_connector.unwrap_or_else(http_connector),
+                app_server: self.app_server,
                 hubs: Default::default(),
                 hub_lock: Mutex::new(()),
                 home_hub: Default::default(),
@@ -471,6 +483,7 @@ pub(crate) struct Inner<S> {
     /// group's pending commit, after a peer hub failure.
     pub(crate) commit_retry_at: std::sync::Mutex<HashMap<GroupId, u64>>,
     pub(crate) hub_connector: HubConnector,
+    pub(crate) app_server: Option<Arc<dyn AppServer>>,
     /// Transports and sessions of the hubs other than the home hub.
     pub(crate) hubs: std::sync::Mutex<HashMap<String, HubHandle>>,
     /// Serializes hub registry updates.

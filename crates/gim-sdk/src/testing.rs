@@ -1,7 +1,7 @@
-//! Test doubles: [`FakeTransport`] over gim-test's in-memory hub, and
-//! [`MemorySecretStorage`].
+//! Test doubles: [`FakeTransport`] over gim-test's in-memory hub,
+//! [`FakeAppServer`] and [`MemorySecretStorage`].
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::ops::Range;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
@@ -14,13 +14,14 @@ use gim_common::{now_ms, ClientId, DeviceRef, GroupId, UserId};
 use gim_crypto::{inspect_handshake, private_message_epoch, HandshakeKind, MlsEngine};
 use gim_identity::{
     normalize_hub_url, AuthChallenge, AuthResponse, HostingEntry, HubRootKey, IdentityError,
-    SignedDeviceList, SignedHostingRecord, UserHostingRecord,
+    RootKey, SignedDeviceList, SignedHostingRecord, UserHostingRecord,
 };
 use gim_test::{
     Delivered, DeliveryError, Event, FakeDeliveryService, GroupKind, MembershipChange,
     SubmitCommit, Welcome,
 };
 
+use crate::app_server::{AbuseReport, AppServer, StoredSlot};
 use crate::transport::{
     AccessToken, Challenge, ClaimedKeyPackage, CommitAccepted, EventBatch, GroupInfo,
     HostingEntryGrant, HubEvent, HubIdentity, KeyPackageCount, OutgoingCommit, PostError,
@@ -59,6 +60,9 @@ pub struct FakeTransport {
     /// it and issues AuthChallenge v2 for it; without one, v1.
     public_url: Arc<Mutex<Option<String>>>,
     push: Arc<FakePush>,
+    /// Users deleted with [`Transport::delete_user`]: the hub no longer
+    /// knows them.
+    deleted: Arc<Mutex<HashSet<UserId>>>,
 }
 
 /// Push registrations of the fake hub.
@@ -130,6 +134,7 @@ impl FakeTransport {
             }),
             public_url: Arc::default(),
             push: Arc::default(),
+            deleted: Arc::default(),
         }
     }
 
@@ -154,6 +159,11 @@ impl FakeTransport {
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .clone()
+    }
+
+    /// Whether `user_id` deleted their account here.
+    pub fn is_deleted(&self, user_id: &UserId) -> bool {
+        lock(&self.deleted).contains(user_id)
     }
 
     /// The root key the fake hub signs hosting entries with.
@@ -304,6 +314,10 @@ impl From<DeliveryError> for PostError {
 }
 
 /// A definite 4xx, as the HTTP transport maps it.
+fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+    mutex.lock().unwrap_or_else(|e| e.into_inner())
+}
+
 fn rejected(status: u16, code: &str, message: impl std::fmt::Display) -> TransportError {
     TransportError::Rejected {
         status,
@@ -516,7 +530,22 @@ impl Transport for FakeTransport {
         Ok(self.service.put_recovery_backup(user_id, backup)?)
     }
 
+    async fn delete_user(&self, root: &RootKey) -> TransportResult<()> {
+        let path = gim_proto::v2::paths::user(root.public().user_id().as_str());
+        let user_id = root
+            .sign_request("DELETE", &path, now_ms(), b"")
+            .verify("DELETE", &path, b"", now_ms())
+            .map_err(|e| rejected(401, "invalid_signature", e))?;
+        if self.service.device_list(&user_id).is_none() || !lock(&self.deleted).insert(user_id) {
+            return Err(TransportError::NotFound("no such user".into()));
+        }
+        Ok(())
+    }
+
     async fn recovery_backup(&self, user_id: &UserId) -> TransportResult<Option<Vec<u8>>> {
+        if self.is_deleted(user_id) {
+            return Ok(None);
+        }
         Ok(self.service.recovery_backup(user_id))
     }
 
@@ -546,6 +575,9 @@ impl Transport for FakeTransport {
         _token: Option<&AccessToken>,
         user_id: &UserId,
     ) -> TransportResult<Option<Vec<u8>>> {
+        if self.is_deleted(user_id) {
+            return Ok(None);
+        }
         Ok(self.service.device_list(user_id))
     }
 
@@ -555,6 +587,9 @@ impl Transport for FakeTransport {
         _token: Option<&AccessToken>,
         user_id: &UserId,
     ) -> TransportResult<Option<UserRecord>> {
+        if self.is_deleted(user_id) {
+            return Ok(None);
+        }
         Ok(self.service.user(user_id).map(|user| UserRecord {
             user_id: user.user_id,
             device_list: user.device_list,
@@ -970,6 +1005,104 @@ impl SecretStorage for MemorySecretStorage {
 
     fn delete(&self, key: &str) -> Result<(), SecretStorageError> {
         self.lock()?.remove(key);
+        Ok(())
+    }
+}
+
+/// An in-memory [`AppServer`]. Cloning shares the state, so several
+/// clients (devices) can use the same fake server.
+#[derive(Debug, Clone, Default)]
+pub struct FakeAppServer {
+    state: Arc<Mutex<FakeAppState>>,
+}
+
+#[derive(Debug, Default)]
+struct FakeAppState {
+    slots: HashMap<(UserId, String), StoredSlot>,
+    /// Every report, with its reporter.
+    reports: Vec<(UserId, AbuseReport)>,
+    /// Every call fails as a network error.
+    unreachable: bool,
+}
+
+impl FakeAppServer {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// While set, every call fails with [`TransportError::Network`].
+    pub fn set_unreachable(&self, unreachable: bool) {
+        lock(&self.state).unreachable = unreachable;
+    }
+
+    /// The slot `name` of `user_id`, as stored (sealed).
+    pub fn slot_of(&self, user_id: &UserId, name: &str) -> Option<StoredSlot> {
+        lock(&self.state)
+            .slots
+            .get(&(user_id.clone(), name.to_string()))
+            .cloned()
+    }
+
+    /// Every report filed, with its reporter, oldest first.
+    pub fn reports(&self) -> Vec<(UserId, AbuseReport)> {
+        lock(&self.state).reports.clone()
+    }
+
+    fn state(&self) -> TransportResult<MutexGuard<'_, FakeAppState>> {
+        let state = lock(&self.state);
+        if state.unreachable {
+            return Err(TransportError::Network("app server unreachable".into()));
+        }
+        Ok(state)
+    }
+}
+
+#[async_trait]
+impl AppServer for FakeAppServer {
+    async fn slot(&self, root: &RootKey, name: &str) -> TransportResult<Option<StoredSlot>> {
+        let key = (root.public().user_id(), name.to_string());
+        Ok(self.state()?.slots.get(&key).cloned())
+    }
+
+    async fn put_slot(
+        &self,
+        root: &RootKey,
+        name: &str,
+        version: u64,
+        data: &[u8],
+    ) -> TransportResult<u64> {
+        let key = (root.public().user_id(), name.to_string());
+        let mut state = self.state()?;
+        let current = state.slots.get(&key).map_or(0, |s| s.version);
+        if current != version {
+            return Err(TransportError::Conflict(format!(
+                "VERSION_CONFLICT: slot is at version {current}"
+            )));
+        }
+        let version = current + 1;
+        state.slots.insert(
+            key,
+            StoredSlot {
+                version,
+                data: data.to_vec(),
+            },
+        );
+        Ok(version)
+    }
+
+    async fn report(&self, root: &RootKey, report: &AbuseReport) -> TransportResult<String> {
+        let mut state = self.state()?;
+        state
+            .reports
+            .push((root.public().user_id(), report.clone()));
+        Ok(format!("report-{}", state.reports.len()))
+    }
+
+    async fn delete_user_data(&self, root: &RootKey) -> TransportResult<()> {
+        let user_id = root.public().user_id();
+        self.state()?
+            .slots
+            .retain(|(owner, _), _| *owner != user_id);
         Ok(())
     }
 }

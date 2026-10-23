@@ -305,7 +305,9 @@ impl<S: StateStore + 'static> Client<S> {
     /// discarded attempt, the new list revokes it (one more seq).
     ///
     /// Chats are not rejoined automatically: their members (or another own
-    /// device) have to add this device again.
+    /// device) have to add this device again. The privacy settings (blocked
+    /// users included) come back from the app server, if one is configured
+    /// and holds a backup.
     pub async fn restore_from_recovery(
         &self,
         user_id: &UserId,
@@ -392,6 +394,7 @@ impl<S: StateStore + 'static> Client<S> {
             // linked from here on.
             self.refresh_hubs_logged(Listed::Fetch).await;
             self.share_hub_locations().await;
+            self.restore_privacy().await;
             Ok(())
         }
         .await;

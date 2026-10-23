@@ -1168,6 +1168,16 @@ public protocol GimClientProtocol: AnyObject, Sendable {
      */
     func createIdentity(displayName: String) async throws  -> String
     
+    /**
+     * Deletes the account for good: the app server's data, every chat
+     * (the user leaves), the account on every hub, then everything on
+     * this device as `sign_out` does. Returns the ids of the user's other
+     * hubs that could not be reached (their records expire on their own).
+     * On an error nothing local is deleted and it can be called again.
+     * Irreversible: confirm with the user first.
+     */
+    func deleteAccount() async throws  -> [String]
+    
     func deleteMessage(chatId: String, messageId: String) async throws 
     
     /**
@@ -1298,6 +1308,15 @@ public protocol GimClientProtocol: AnyObject, Sendable {
     func removeHub(hubId: String, confirmOwnedGroups: Bool) async throws 
     
     func removeMember(chatId: String, userId: String) async throws 
+    
+    /**
+     * Reports a user to the app server's moderators with the messages
+     * `message_ids` (at most 50, from the local history) in plaintext, and
+     * an optional `note` (at most 1000 characters). Returns the report id.
+     * Does not block: call `block_user` too if wanted. `InvalidInput`
+     * without an app server (`ClientConfig::app_server_url`).
+     */
+    func reportUser(userId: String, reason: ReportReason, note: String?, messageIds: [String]) async throws  -> String
     
     /**
      * Restores the user on this (fresh) device from its recovery code
@@ -1865,6 +1884,30 @@ open func createIdentity(displayName: String)async throws  -> String  {
         )
 }
     
+    /**
+     * Deletes the account for good: the app server's data, every chat
+     * (the user leaves), the account on every hub, then everything on
+     * this device as `sign_out` does. Returns the ids of the user's other
+     * hubs that could not be reached (their records expire on their own).
+     * On an error nothing local is deleted and it can be called again.
+     * Irreversible: confirm with the user first.
+     */
+open func deleteAccount()async throws  -> [String]  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_gim_core_fn_method_gimclient_delete_account(
+                        self.uniffiCloneHandle()
+                )
+            },
+            pollFunc: ffi_gim_core_rust_future_poll_rust_buffer,
+            completeFunc: ffi_gim_core_rust_future_complete_rust_buffer,
+            freeFunc: ffi_gim_core_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterSequenceString.lift,
+            errorHandler: FfiConverterTypeGimError_lift
+        )
+}
+    
 open func deleteMessage(chatId: String, messageId: String)async throws   {
     return
         try  await uniffiRustCallAsync(
@@ -2293,6 +2336,29 @@ open func removeMember(chatId: String, userId: String)async throws   {
             completeFunc: ffi_gim_core_rust_future_complete_void,
             freeFunc: ffi_gim_core_rust_future_free_void,
             liftFunc: { $0 },
+            errorHandler: FfiConverterTypeGimError_lift
+        )
+}
+    
+    /**
+     * Reports a user to the app server's moderators with the messages
+     * `message_ids` (at most 50, from the local history) in plaintext, and
+     * an optional `note` (at most 1000 characters). Returns the report id.
+     * Does not block: call `block_user` too if wanted. `InvalidInput`
+     * without an app server (`ClientConfig::app_server_url`).
+     */
+open func reportUser(userId: String, reason: ReportReason, note: String?, messageIds: [String])async throws  -> String  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_gim_core_fn_method_gimclient_report_user(
+                        self.uniffiCloneHandle(),FfiConverterString.lower(userId),FfiConverterTypeReportReason_lower(reason),FfiConverterOptionString.lower(note),FfiConverterSequenceString.lower(messageIds)
+                )
+            },
+            pollFunc: ffi_gim_core_rust_future_poll_rust_buffer,
+            completeFunc: ffi_gim_core_rust_future_complete_rust_buffer,
+            freeFunc: ffi_gim_core_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterString.lift,
             errorHandler: FfiConverterTypeGimError_lift
         )
 }
@@ -4989,6 +5055,12 @@ public struct ClientConfig: Equatable, Hashable {
      * The process kind; `None` is `ClientMode::App`.
      */
     public var mode: ClientMode?
+    /**
+     * Base URL of the gim app server (`http://` or `https://`): the
+     * encrypted settings backup and abuse reports. `None`: settings are
+     * not backed up and `report_user` fails.
+     */
+    public var appServerUrl: String?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -4998,9 +5070,15 @@ public struct ClientConfig: Equatable, Hashable {
          */serverUrl: String, 
         /**
          * The process kind; `None` is `ClientMode::App`.
-         */mode: ClientMode? = nil) {
+         */mode: ClientMode? = nil, 
+        /**
+         * Base URL of the gim app server (`http://` or `https://`): the
+         * encrypted settings backup and abuse reports. `None`: settings are
+         * not backed up and `report_user` fails.
+         */appServerUrl: String? = nil) {
         self.serverUrl = serverUrl
         self.mode = mode
+        self.appServerUrl = appServerUrl
     }
 
     
@@ -5020,13 +5098,15 @@ public struct FfiConverterTypeClientConfig: FfiConverterRustBuffer {
         return
             try ClientConfig(
                 serverUrl: FfiConverterString.read(from: &buf), 
-                mode: FfiConverterOptionTypeClientMode.read(from: &buf)
+                mode: FfiConverterOptionTypeClientMode.read(from: &buf), 
+                appServerUrl: FfiConverterOptionString.read(from: &buf)
         )
     }
 
     public static func write(_ value: ClientConfig, into buf: inout [UInt8]) {
         FfiConverterString.write(value.serverUrl, into: &buf)
         FfiConverterOptionTypeClientMode.write(value.mode, into: &buf)
+        FfiConverterOptionString.write(value.appServerUrl, into: &buf)
     }
 }
 
@@ -7350,6 +7430,99 @@ public func FfiConverterTypeNotificationKind_lower(_ value: NotificationKind) ->
 
 
 /**
+ * Why a user is reported (`report_user`).
+ */
+
+public enum ReportReason: Equatable, Hashable {
+    
+    case spam
+    case harassment
+    /**
+     * Content not suitable for the user (sexual, violent, ...).
+     */
+    case inappropriate
+    case scam
+    case other
+
+
+
+
+
+}
+
+#if compiler(>=6)
+extension ReportReason: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeReportReason: FfiConverterRustBuffer {
+    typealias SwiftType = ReportReason
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ReportReason {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .spam
+        
+        case 2: return .harassment
+        
+        case 3: return .inappropriate
+        
+        case 4: return .scam
+        
+        case 5: return .other
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: ReportReason, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .spam:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .harassment:
+            writeInt(&buf, Int32(2))
+        
+        
+        case .inappropriate:
+            writeInt(&buf, Int32(3))
+        
+        
+        case .scam:
+            writeInt(&buf, Int32(4))
+        
+        
+        case .other:
+            writeInt(&buf, Int32(5))
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeReportReason_lift(_ buf: RustBuffer) throws -> ReportReason {
+    return try FfiConverterTypeReportReason.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeReportReason_lower(_ value: ReportReason) -> RustBuffer {
+    return FfiConverterTypeReportReason.lower(value)
+}
+
+
+
+/**
  * Why a message is `SendState::Failed`.
  */
 
@@ -8531,6 +8704,9 @@ private let initializationResult: InitializationResult = {
     if (uniffi_gim_core_checksum_method_gimclient_create_identity() != 56233) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_gim_core_checksum_method_gimclient_delete_account() != 47167) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_gim_core_checksum_method_gimclient_delete_message() != 40750) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -8595,6 +8771,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_gim_core_checksum_method_gimclient_remove_member() != 31958) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_gim_core_checksum_method_gimclient_report_user() != 60904) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_gim_core_checksum_method_gimclient_restore_from_recovery() != 59727) {

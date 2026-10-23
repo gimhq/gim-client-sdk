@@ -14,12 +14,12 @@ mod timeline;
 mod types;
 
 pub use chat_list::{ChatListDiff, ChatListListener};
-#[cfg(feature = "testing")]
-pub use client::create_client_with_fake_transport;
 pub use client::{
     create_client, ClientConfig, ClientMode, ConnectionStateListener, GimClient, HubListListener,
     TypingListener,
 };
+#[cfg(feature = "testing")]
+pub use client::{create_client_with_fake_servers, create_client_with_fake_transport};
 pub use error::GimError;
 pub use hooks::PlatformHooks;
 pub use link::{LinkSession, PendingApproval};
@@ -29,7 +29,7 @@ pub use types::{
     ChatKind, ChatState, ChatSummary, ConnectionState, DeviceInfo, HubInfo, HubState, MediaRef,
     MembershipChangeKind, MessageContent, MessageItem, MessagePreview, NotificationContent,
     NotificationKind, PrivacySettings, PushRegistration, ReactionGroup, RecoveryRotation,
-    ReplyPreview, SendFailure, SendState, Session, TimelineItem, UserProfile,
+    ReplyPreview, ReportReason, SendFailure, SendState, Session, TimelineItem, UserProfile,
 };
 
 uniffi::setup_scaffolding!();
@@ -85,6 +85,7 @@ mod tests {
         ClientConfig {
             server_url: url.to_string(),
             mode: None,
+            app_server_url: None,
         }
     }
 

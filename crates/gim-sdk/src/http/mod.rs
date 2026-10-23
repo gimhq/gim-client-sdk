@@ -5,6 +5,7 @@
 //! `reqwest::Client`, per-request auth and timeouts, and a single place that
 //! maps HTTP statuses to errors. No code is copied.
 
+mod app_server;
 mod convert;
 mod error;
 
@@ -13,8 +14,11 @@ use std::path::Path;
 use std::time::Duration;
 
 use async_trait::async_trait;
+use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+use base64::Engine as _;
 use gim_base::model::{ChatKind, GroupMessage};
 use gim_common::{ClientId, DeviceRef, GroupId, UserId};
+use gim_identity::RootKey;
 use gim_proto::v2::{self, paths};
 use reqwest::header::{CONTENT_LENGTH, CONTENT_TYPE, RANGE, RETRY_AFTER};
 use reqwest::{Body, Method, RequestBuilder, Response, StatusCode};
@@ -30,6 +34,7 @@ use crate::transport::{
     TransportResult, UserRecord,
 };
 
+pub use app_server::HttpAppServer;
 pub use reqwest::Url;
 
 /// Longest long-poll `wait` the hub accepts.
@@ -712,6 +717,21 @@ impl Transport for HttpTransport {
                 .json(&request),
         )
         .await?;
+        Ok(())
+    }
+
+    async fn delete_user(&self, root: &RootKey) -> TransportResult<()> {
+        let path = paths::user(root.public().user_id().as_str());
+        let signed = root.sign_request("DELETE", &path, gim_common::now_ms(), b"");
+        let request = self
+            .api(Method::DELETE, &path, None)
+            .header(
+                "Gim-Key",
+                URL_SAFE_NO_PAD.encode(signed.public_key.as_bytes()),
+            )
+            .header("Gim-Timestamp", signed.timestamp_ms.to_string())
+            .header("Gim-Signature", URL_SAFE_NO_PAD.encode(signed.signature));
+        Self::send_ok(request).await?;
         Ok(())
     }
 

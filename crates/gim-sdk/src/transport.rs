@@ -15,6 +15,7 @@ use std::time::Duration;
 use async_trait::async_trait;
 use gim_base::model::{ChatKind, GroupMessage, IncomingEvent};
 use gim_common::{ClientId, DeviceRef, GroupId, UserId};
+use gim_identity::RootKey;
 use serde::{Deserialize, Serialize};
 
 use crate::push::PushRegistration;
@@ -415,6 +416,15 @@ pub trait Transport: Send + Sync {
         user_id: &UserId,
         backup: Vec<u8>,
     ) -> TransportResult<()>;
+
+    /// Deletes the user of `root` and everything the hub keeps for them
+    /// (`DELETE /v2/users/{user_id}`, signed with the root key, no token).
+    /// [`TransportError::NotFound`] if the hub has no such user.
+    async fn delete_user(&self, _root: &RootKey) -> TransportResult<()> {
+        Err(TransportError::NotFound(
+            "account deletion is not supported".into(),
+        ))
+    }
 
     /// The user's sealed recovery backup (no token: the restore path of a
     /// user without devices); `None` if there is none.

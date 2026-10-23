@@ -7,14 +7,16 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use gim_common::UserId;
 use gim_core::{
-    create_client_with_fake_transport, ChatKind, ChatListDiff, ChatListListener, ChatState,
-    ChatSummary, ClientConfig, ClientMode, ConnectionState, ConnectionStateListener, GimClient,
-    GimError, HubInfo, HubListListener, HubState, LocalTimeZone, MembershipChangeKind,
-    MessageContent, MessageItem, NotificationKind, PlatformHooks, PushRegistration, SendState,
-    TaskHandle, TimelineDiff, TimelineItem, TimelineListener, TypingListener,
+    create_client_with_fake_servers, create_client_with_fake_transport, ChatKind, ChatListDiff,
+    ChatListListener, ChatState, ChatSummary, ClientConfig, ClientMode, ConnectionState,
+    ConnectionStateListener, GimClient, GimError, HubInfo, HubListListener, HubState,
+    LocalTimeZone, MembershipChangeKind, MessageContent, MessageItem, NotificationKind,
+    PlatformHooks, PushRegistration, ReportReason, SendState, TaskHandle, TimelineDiff,
+    TimelineItem, TimelineListener, TypingListener,
 };
-use gim_sdk::testing::FakeTransport;
+use gim_sdk::testing::{FakeAppServer, FakeTransport};
 use tempfile::TempDir;
 
 /// In-memory keystore and a temporary data directory.
@@ -169,6 +171,7 @@ async fn open(transport: &FakeTransport, hooks: &Arc<MemoryHooks>) -> Arc<GimCli
     let config = ClientConfig {
         server_url: "https://gim.example.org".to_string(),
         mode: None,
+        app_server_url: None,
     };
     create_client_with_fake_transport(config, hooks.clone(), transport.clone())
         .await
@@ -1120,6 +1123,7 @@ async fn locked_keystore_fails_without_replacing_the_database_key() {
     let config = ClientConfig {
         server_url: "https://gim.example.org".to_string(),
         mode: None,
+        app_server_url: None,
     };
     let result = create_client_with_fake_transport(config, hooks.clone(), transport.clone()).await;
     assert!(matches!(result, Err(GimError::Storage { .. })));
@@ -1214,6 +1218,7 @@ async fn extension_mode_opens_the_app_state_and_never_resets_it() {
         let config = ClientConfig {
             server_url: "https://gim.example.org".to_string(),
             mode: Some(ClientMode::Extension),
+            app_server_url: None,
         };
         create_client_with_fake_transport(config, hooks.clone(), transport.clone())
     };
@@ -1265,6 +1270,7 @@ async fn only_the_app_signs_out_and_the_extension_fails_after() {
     let config = ClientConfig {
         server_url: "https://gim.example.org".to_string(),
         mode: Some(ClientMode::Extension),
+        app_server_url: None,
     };
     let nse = create_client_with_fake_transport(config, alice.hooks.clone(), transport.clone())
         .await
@@ -1348,4 +1354,51 @@ async fn privacy_and_chat_settings_round_trip() {
     let profile = alice.own_profile().await.unwrap().unwrap();
     assert_eq!(profile.display_name, "Alice");
     assert!(!profile.has_avatar);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_report_and_the_account_deletion_reach_the_servers() {
+    let transport = FakeTransport::new();
+    let app = FakeAppServer::new();
+    let hooks = MemoryHooks::new();
+    let config = ClientConfig {
+        server_url: "https://gim.example.org".to_string(),
+        mode: None,
+        app_server_url: None,
+    };
+    let alice =
+        create_client_with_fake_servers(config, hooks.clone(), transport.clone(), app.clone())
+            .await
+            .unwrap();
+    alice.create_identity("Alice".to_string()).await.unwrap();
+    let alice_id = alice.user_id().unwrap();
+    let bob = open(&transport, &MemoryHooks::new()).await;
+    bob.create_identity("Bob".to_string()).await.unwrap();
+    let bob_id = bob.user_id().unwrap();
+
+    // Bob's client has no app server.
+    assert!(matches!(
+        bob.report_user(alice_id.clone(), ReportReason::Other, None, vec![])
+            .await,
+        Err(GimError::InvalidInput { .. })
+    ));
+    alice
+        .report_user(
+            bob_id.clone(),
+            ReportReason::Scam,
+            Some("a fake prize".to_string()),
+            vec![],
+        )
+        .await
+        .unwrap();
+    let reports = app.reports();
+    assert_eq!(reports.len(), 1);
+    assert_eq!(reports[0].1.reported_user_id, bob_id);
+    assert_eq!(reports[0].1.note.as_deref(), Some("a fake prize"));
+
+    assert!(alice.delete_account().await.unwrap().is_empty());
+    assert!(transport.is_deleted(&UserId::try_from(alice_id).unwrap()));
+    assert!(hooks.secrets.lock().unwrap().is_empty());
+    assert!(!hooks.path("gim.sqlite3").exists());
+    assert_eq!(alice.session().await, Err(GimError::NotRegistered));
 }

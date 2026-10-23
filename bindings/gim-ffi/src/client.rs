@@ -11,9 +11,9 @@ use gim_base::{BaseError, StateReader};
 use gim_common::{DeviceId, GroupId, MessageId, UserId};
 use gim_sdk::transport::Transport;
 use gim_sdk::{
-    Client, ClientBuilder, HttpTransport, OutboxSender, RecoveryCode, StoreLock,
-    DEFAULT_STORE_LOCK_TIMEOUT, DEVICE_KEY_SECRET_KEY, OUTGOING_DIR, PUSH_REGISTRATION_SECRET_KEY,
-    ROOT_KEY_SECRET_KEY, SESSION_SECRET_KEY,
+    AppServer, Client, ClientBuilder, HttpAppServer, HttpTransport, OutboxSender, RecoveryCode,
+    StoreLock, DEFAULT_STORE_LOCK_TIMEOUT, DEVICE_KEY_SECRET_KEY, OUTGOING_DIR,
+    PUSH_REGISTRATION_SECRET_KEY, ROOT_KEY_SECRET_KEY, SESSION_SECRET_KEY,
 };
 use gim_store_sqlite::{DbKey, SqliteStore, DATABASE_FILE_NAME};
 use tokio::sync::{broadcast, watch};
@@ -28,8 +28,8 @@ use crate::timeline::PlatformTimeZone;
 use crate::{
     ChatListDiff, ChatListListener, ChatState, ConnectionState, DeviceInfo, GimError, HubInfo,
     LinkSession, LocalTimeZone, NotificationContent, PendingApproval, PlatformHooks,
-    PrivacySettings, PushRegistration, RecoveryRotation, Session, TaskHandle, Timeline,
-    UserProfile,
+    PrivacySettings, PushRegistration, RecoveryRotation, ReportReason, Session, TaskHandle,
+    Timeline, UserProfile,
 };
 
 type Sdk = Client<SqliteStore>;
@@ -44,6 +44,11 @@ pub struct ClientConfig {
     /// The process kind; `None` is `ClientMode::App`.
     #[uniffi(default)]
     pub mode: Option<ClientMode>,
+    /// Base URL of the gim app server (`http://` or `https://`): the
+    /// encrypted settings backup and abuse reports. `None`: settings are
+    /// not backed up and `report_user` fails.
+    #[uniffi(default)]
+    pub app_server_url: Option<String>,
 }
 
 /// What the process creating the client is. See `docs/API.md`, *App
@@ -102,7 +107,14 @@ pub async fn create_client(
     config: ClientConfig,
     hooks: Arc<dyn PlatformHooks>,
 ) -> Result<Arc<GimClient>, GimError> {
-    GimClient::open(config, hooks, |url| {
+    let app_server = match &config.app_server_url {
+        Some(url) => Some(
+            Arc::new(HttpAppServer::new(parse_hub_url("app_server_url", url)?)?)
+                as Arc<dyn AppServer>,
+        ),
+        None => None,
+    };
+    GimClient::open(config, hooks, app_server, |url| {
         Ok(Arc::new(HttpTransport::new(url.clone())?) as Arc<dyn Transport>)
     })
     .await
@@ -117,7 +129,24 @@ pub async fn create_client_with_fake_transport(
     hooks: Arc<dyn PlatformHooks>,
     transport: gim_sdk::testing::FakeTransport,
 ) -> Result<Arc<GimClient>, GimError> {
-    GimClient::open(config, hooks, move |_| {
+    GimClient::open(config, hooks, None, move |_| {
+        Ok(Arc::new(transport) as Arc<dyn Transport>)
+    })
+    .await
+    .map(Arc::new)
+}
+
+/// Like [`create_client_with_fake_transport`], with an in-memory fake app
+/// server too (`config.app_server_url` is ignored). Rust only.
+#[cfg(feature = "testing")]
+pub async fn create_client_with_fake_servers(
+    config: ClientConfig,
+    hooks: Arc<dyn PlatformHooks>,
+    transport: gim_sdk::testing::FakeTransport,
+    app_server: gim_sdk::testing::FakeAppServer,
+) -> Result<Arc<GimClient>, GimError> {
+    let app_server = Arc::new(app_server) as Arc<dyn AppServer>;
+    GimClient::open(config, hooks, Some(app_server), move |_| {
         Ok(Arc::new(transport) as Arc<dyn Transport>)
     })
     .await
@@ -241,6 +270,7 @@ impl GimClient {
     async fn open(
         config: ClientConfig,
         hooks: Arc<dyn PlatformHooks>,
+        app_server: Option<Arc<dyn AppServer>>,
         transport: impl FnOnce(&Url) -> Result<Arc<dyn Transport>, GimError>,
     ) -> Result<Self, GimError> {
         let hooks = Arc::new(Foreign::new(hooks));
@@ -286,7 +316,12 @@ impl GimClient {
             Ok::<_, GimError>((builder, reset))
         })
         .await??;
-        let sdk = builder.data_dir(&data_dir).build()?;
+        let builder = builder.data_dir(&data_dir);
+        let builder = match app_server {
+            Some(app_server) => builder.app_server(app_server),
+            None => builder,
+        };
+        let sdk = builder.build()?;
         sdk.restore_session().await?;
         let shared = Arc::new(Shared {
             network_reachable: AtomicBool::new(hooks.call(|hooks| hooks.is_network_reachable())),
@@ -303,6 +338,45 @@ impl GimClient {
             local_time: Mutex::default(),
             callbacks,
         })
+    }
+
+    /// Deletes everything of the user on this device (`sign_out`, after
+    /// the push registration): secrets, database and temporary files.
+    async fn wipe_local(&self) -> Result<(), GimError> {
+        let sdk = self.sdk()?;
+        self.callbacks.close();
+        self.stop_sync_tasks();
+        self.signed_out.store(true, Ordering::SeqCst);
+        let sdk = sdk.clone();
+        let callbacks = self.callbacks.clone();
+        let hooks = self.hooks.clone();
+        let data_dir = self.data_dir.clone();
+        // On a blocking-pool thread: the wait must not hold a runtime thread
+        // a callback in flight may need.
+        tokio::task::spawn_blocking(move || {
+            // Bounded: a callback that never returns does not hang sign-out.
+            callbacks.drain(DRAIN_TIMEOUT);
+            // Under the store lock, so that an extension never writes to a
+            // database being deleted; gim.lock itself stays.
+            sdk.wipe_store(|| {
+                for key in [
+                    SESSION_SECRET_KEY,
+                    DEVICE_KEY_SECRET_KEY,
+                    ROOT_KEY_SECRET_KEY,
+                    PUSH_REGISTRATION_SECRET_KEY,
+                    ClientBuilder::<SqliteStore>::DB_KEY_SECRET_KEY,
+                ] {
+                    hooks.call(move |hooks| hooks.secure_store_delete(key.to_string()));
+                }
+                for suffix in ["", "-wal", "-shm", "-journal"] {
+                    remove_if_exists(&data_dir.join(format!("{DATABASE_FILE_NAME}{suffix}")))?;
+                }
+                remove_if_exists(&data_dir.join("tmp"))?;
+                Ok(remove_if_exists(&data_dir.join(OUTGOING_DIR))?)
+            })
+        })
+        .await??;
+        Ok(())
     }
 
     /// The SDK client, unless signed out.
@@ -785,6 +859,42 @@ impl GimClient {
         Ok(self.sdk()?.unblock_user(&user_id).await?)
     }
 
+    /// Reports a user to the app server's moderators with the messages
+    /// `message_ids` (at most 50, from the local history) in plaintext, and
+    /// an optional `note` (at most 1000 characters). Returns the report id.
+    /// Does not block: call `block_user` too if wanted. `InvalidInput`
+    /// without an app server (`ClientConfig::app_server_url`).
+    pub async fn report_user(
+        &self,
+        user_id: String,
+        reason: ReportReason,
+        note: Option<String>,
+        message_ids: Vec<String>,
+    ) -> Result<String, GimError> {
+        let user_id: UserId = parse_id("user_id", user_id)?;
+        let message_ids = message_ids
+            .into_iter()
+            .map(|id| parse_id::<MessageId>("message_ids", id))
+            .collect::<Result<_, _>>()?;
+        Ok(self
+            .sdk()?
+            .report_user(&user_id, reason.into(), note, message_ids)
+            .await?)
+    }
+
+    /// Deletes the account for good: the app server's data, every chat
+    /// (the user leaves), the account on every hub, then everything on
+    /// this device as `sign_out` does. Returns the ids of the user's other
+    /// hubs that could not be reached (their records expire on their own).
+    /// On an error nothing local is deleted and it can be called again.
+    /// Irreversible: confirm with the user first.
+    pub async fn delete_account(&self) -> Result<Vec<String>, GimError> {
+        let unreached = self.sdk()?.delete_account().await?;
+        // The hubs dropped the push registration with the account.
+        self.wipe_local().await?;
+        Ok(unreached)
+    }
+
     /// Mutes a chat's notifications until `muted_until_ms` (Unix
     /// milliseconds; `muted_forever()` for good, 0 to unmute).
     pub async fn set_chat_muted(
@@ -846,39 +956,7 @@ impl GimClient {
         // Best effort (gim-sdk logs failures), while the keystore hooks
         // still run: the hubs stop pushing to this device.
         let _ = tokio::time::timeout(SIGN_OUT_PUSH_TIMEOUT, sdk.unregister_push()).await;
-        self.callbacks.close();
-        self.stop_sync_tasks();
-        self.signed_out.store(true, Ordering::SeqCst);
-        let sdk = sdk.clone();
-        let callbacks = self.callbacks.clone();
-        let hooks = self.hooks.clone();
-        let data_dir = self.data_dir.clone();
-        // On a blocking-pool thread: the wait must not hold a runtime thread
-        // a callback in flight may need.
-        tokio::task::spawn_blocking(move || {
-            // Bounded: a callback that never returns does not hang sign-out.
-            callbacks.drain(DRAIN_TIMEOUT);
-            // Under the store lock, so that an extension never writes to a
-            // database being deleted; gim.lock itself stays.
-            sdk.wipe_store(|| {
-                for key in [
-                    SESSION_SECRET_KEY,
-                    DEVICE_KEY_SECRET_KEY,
-                    ROOT_KEY_SECRET_KEY,
-                    PUSH_REGISTRATION_SECRET_KEY,
-                    ClientBuilder::<SqliteStore>::DB_KEY_SECRET_KEY,
-                ] {
-                    hooks.call(move |hooks| hooks.secure_store_delete(key.to_string()));
-                }
-                for suffix in ["", "-wal", "-shm", "-journal"] {
-                    remove_if_exists(&data_dir.join(format!("{DATABASE_FILE_NAME}{suffix}")))?;
-                }
-                remove_if_exists(&data_dir.join("tmp"))?;
-                Ok(remove_if_exists(&data_dir.join(OUTGOING_DIR))?)
-            })
-        })
-        .await??;
-        Ok(())
+        self.wipe_local().await
     }
 
     /// Registers this device for push on every hub of the user (`PUT

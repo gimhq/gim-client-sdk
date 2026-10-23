@@ -63,6 +63,33 @@ Phase B (servers):
 7. Account deletion: the hub endpoint, the SDK flow, and deleting the
    app-server data.
 
+Phase B status: code done, deployment pending.
+
+- Core `259c8cf`: root-signed HTTP requests (`gim/root-request/v1`,
+  `RootKey::sign_request`, shared vectors) and `StorageKey` (HKDF of the
+  root seed, AES-256-GCM, slot name as AAD).
+- App server: new repository gimhq/gim-app on zzci/bun-tpl for Cloudflare
+  Workers, module `gim` (slots with versioned writes, reports, data
+  deletion, moderator inbox). It authenticates by the root signature
+  alone, so it holds no accounts. Not deployed yet: it needs Cloudflare
+  credentials.
+- Hub `fa000fb`: `DELETE /v2/users/{user_id}`, root-signed. Group rosters
+  are kept, so MLS roster checks stay valid.
+- SDK: `AppServer` (`HttpAppServer`, `FakeAppServer`),
+  `ClientBuilder::app_server`, the privacy backup in slot `privacy`
+  (written after each change, read back by `restore_from_recovery`),
+  `report_user`, `delete_account`, and `Transport::delete_user`. FFI adds
+  `ClientConfig.app_server_url`, `reportUser`, `deleteAccount` and
+  `ReportReason`.
+
+Phase B findings:
+
+- Only the privacy settings are backed up. Chat settings refer to chats
+  that a fully restored device has not rejoined yet.
+- Account deletion deletes the app-server data first and the home hub
+  account last. A failure in either step leaves local data intact, so the
+  call can be retried.
+
 Every core change ships as a gim-core commit that the SDK pins; every SDK
 change regenerates the bindings and documents the API in `docs/API.md`.
 

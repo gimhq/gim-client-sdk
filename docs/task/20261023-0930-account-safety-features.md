@@ -30,3 +30,7 @@ Adding account and safety features to the SDK
   and profile photos (core `dd9ac44`, SQLite migration 0008, gim-ui chat
   list fields, FFI, `docs/API.md`). Phase B (app server, reports, account
   deletion) next.
+- 2026-10-23: Phase B code done (core `259c8cf`, hub `fa000fb`, new
+  gimhq/gim-app, SDK app-server client, privacy backup, `report_user`,
+  `delete_account`). Open: deploying gim-app to Cloudflare Workers, which
+  needs credentials.

@@ -902,6 +902,8 @@ internal object IntegrityCheckingUniffiLib {
     ): Int
     external fun uniffi_gim_core_checksum_method_gimclient_create_identity(
     ): Int
+    external fun uniffi_gim_core_checksum_method_gimclient_delete_account(
+    ): Int
     external fun uniffi_gim_core_checksum_method_gimclient_delete_message(
     ): Int
     external fun uniffi_gim_core_checksum_method_gimclient_devices(
@@ -945,6 +947,8 @@ internal object IntegrityCheckingUniffiLib {
     external fun uniffi_gim_core_checksum_method_gimclient_remove_hub(
     ): Int
     external fun uniffi_gim_core_checksum_method_gimclient_remove_member(
+    ): Int
+    external fun uniffi_gim_core_checksum_method_gimclient_report_user(
     ): Int
     external fun uniffi_gim_core_checksum_method_gimclient_restore_from_recovery(
     ): Int
@@ -1123,6 +1127,8 @@ internal object UniffiLib {
     ): Long
     external fun uniffi_gim_core_fn_method_gimclient_create_identity(`ptr`: Long,`displayName`: RustBuffer.ByValue,
     ): Long
+    external fun uniffi_gim_core_fn_method_gimclient_delete_account(`ptr`: Long,
+    ): Long
     external fun uniffi_gim_core_fn_method_gimclient_delete_message(`ptr`: Long,`chatId`: RustBuffer.ByValue,`messageId`: RustBuffer.ByValue,
     ): Long
     external fun uniffi_gim_core_fn_method_gimclient_devices(`ptr`: Long,
@@ -1166,6 +1172,8 @@ internal object UniffiLib {
     external fun uniffi_gim_core_fn_method_gimclient_remove_hub(`ptr`: Long,`hubId`: RustBuffer.ByValue,`confirmOwnedGroups`: Byte,
     ): Long
     external fun uniffi_gim_core_fn_method_gimclient_remove_member(`ptr`: Long,`chatId`: RustBuffer.ByValue,`userId`: RustBuffer.ByValue,
+    ): Long
+    external fun uniffi_gim_core_fn_method_gimclient_report_user(`ptr`: Long,`userId`: RustBuffer.ByValue,`reason`: RustBuffer.ByValue,`note`: RustBuffer.ByValue,`messageIds`: RustBuffer.ByValue,
     ): Long
     external fun uniffi_gim_core_fn_method_gimclient_restore_from_recovery(`ptr`: Long,`userId`: RustBuffer.ByValue,`recoveryCode`: RustBuffer.ByValue,`revokeOthers`: Byte,
     ): Long
@@ -1503,6 +1511,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if ((lib.uniffi_gim_core_checksum_method_gimclient_create_identity() and 0xFFFF) != 56233) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if ((lib.uniffi_gim_core_checksum_method_gimclient_delete_account() and 0xFFFF) != 47167) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if ((lib.uniffi_gim_core_checksum_method_gimclient_delete_message() and 0xFFFF) != 40750) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -1567,6 +1578,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_gim_core_checksum_method_gimclient_remove_member() and 0xFFFF) != 31958) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if ((lib.uniffi_gim_core_checksum_method_gimclient_report_user() and 0xFFFF) != 60904) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_gim_core_checksum_method_gimclient_restore_from_recovery() and 0xFFFF) != 59727) {
@@ -3027,6 +3041,16 @@ public interface GimClientInterface {
      */
     suspend fun `createIdentity`(`displayName`: kotlin.String): kotlin.String
     
+    /**
+     * Deletes the account for good: the app server's data, every chat
+     * (the user leaves), the account on every hub, then everything on
+     * this device as `sign_out` does. Returns the ids of the user's other
+     * hubs that could not be reached (their records expire on their own).
+     * On an error nothing local is deleted and it can be called again.
+     * Irreversible: confirm with the user first.
+     */
+    suspend fun `deleteAccount`(): List<kotlin.String>
+    
     suspend fun `deleteMessage`(`chatId`: kotlin.String, `messageId`: kotlin.String)
     
     /**
@@ -3157,6 +3181,15 @@ public interface GimClientInterface {
     suspend fun `removeHub`(`hubId`: kotlin.String, `confirmOwnedGroups`: kotlin.Boolean)
     
     suspend fun `removeMember`(`chatId`: kotlin.String, `userId`: kotlin.String)
+    
+    /**
+     * Reports a user to the app server's moderators with the messages
+     * `message_ids` (at most 50, from the local history) in plaintext, and
+     * an optional `note` (at most 1000 characters). Returns the report id.
+     * Does not block: call `block_user` too if wanted. `InvalidInput`
+     * without an app server (`ClientConfig::app_server_url`).
+     */
+    suspend fun `reportUser`(`userId`: kotlin.String, `reason`: ReportReason, `note`: kotlin.String?, `messageIds`: List<kotlin.String>): kotlin.String
     
     /**
      * Restores the user on this (fresh) device from its recovery code
@@ -3875,6 +3908,35 @@ open class GimClient: Disposable, AutoCloseable, GimClientInterface
     }
 
     
+    /**
+     * Deletes the account for good: the app server's data, every chat
+     * (the user leaves), the account on every hub, then everything on
+     * this device as `sign_out` does. Returns the ids of the user's other
+     * hubs that could not be reached (their records expire on their own).
+     * On an error nothing local is deleted and it can be called again.
+     * Irreversible: confirm with the user first.
+     */
+    @Throws(GimException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+    override suspend fun `deleteAccount`() : List<kotlin.String> {
+        return uniffiRustCallAsync(
+        callWithHandle { uniffiHandle ->
+            UniffiLib.uniffi_gim_core_fn_method_gimclient_delete_account(
+                uniffiHandle,
+                
+            )
+        },
+        { future, callback, continuation -> UniffiLib.ffi_gim_core_rust_future_poll_rust_buffer(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_gim_core_rust_future_complete_rust_buffer(future, continuation) },
+        { future -> UniffiLib.ffi_gim_core_rust_future_free_rust_buffer(future) },
+        // lift function
+        { FfiConverterSequenceString.lift(it) },
+        // Error FFI converter
+        GimException.ErrorHandler,
+    )
+    }
+
+    
     @Throws(GimException::class)
     @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
     override suspend fun `deleteMessage`(`chatId`: kotlin.String, `messageId`: kotlin.String) {
@@ -4449,6 +4511,38 @@ open class GimClient: Disposable, AutoCloseable, GimClientInterface
         // lift function
         { },
         
+        // Error FFI converter
+        GimException.ErrorHandler,
+    )
+    }
+
+    
+    /**
+     * Reports a user to the app server's moderators with the messages
+     * `message_ids` (at most 50, from the local history) in plaintext, and
+     * an optional `note` (at most 1000 characters). Returns the report id.
+     * Does not block: call `block_user` too if wanted. `InvalidInput`
+     * without an app server (`ClientConfig::app_server_url`).
+     */
+    @Throws(GimException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+    override suspend fun `reportUser`(`userId`: kotlin.String, `reason`: ReportReason, `note`: kotlin.String?, `messageIds`: List<kotlin.String>) : kotlin.String {
+        return uniffiRustCallAsync(
+        callWithHandle { uniffiHandle ->
+            UniffiLib.uniffi_gim_core_fn_method_gimclient_report_user(
+                uniffiHandle,
+                
+        FfiConverterString.lower(`userId`),
+        FfiConverterTypeReportReason.lower(`reason`),
+        FfiConverterOptionalString.lower(`note`),
+        FfiConverterSequenceString.lower(`messageIds`),
+            )
+        },
+        { future, callback, continuation -> UniffiLib.ffi_gim_core_rust_future_poll_rust_buffer(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_gim_core_rust_future_complete_rust_buffer(future, continuation) },
+        { future -> UniffiLib.ffi_gim_core_rust_future_free_rust_buffer(future) },
+        // lift function
+        { FfiConverterString.lift(it) },
         // Error FFI converter
         GimException.ErrorHandler,
     )
@@ -8451,6 +8545,13 @@ data class ClientConfig (
      * The process kind; `None` is `ClientMode::App`.
      */
     var `mode`: ClientMode? = null 
+    , 
+    /**
+     * Base URL of the gim app server (`http://` or `https://`): the
+     * encrypted settings backup and abuse reports. `None`: settings are
+     * not backed up and `report_user` fails.
+     */
+    var `appServerUrl`: kotlin.String? = null 
     
 ){
     
@@ -8469,17 +8570,20 @@ public object FfiConverterTypeClientConfig: FfiConverterRustBuffer<ClientConfig>
         return ClientConfig(
             FfiConverterString.read(buf),
             FfiConverterOptionalTypeClientMode.read(buf),
+            FfiConverterOptionalString.read(buf),
         )
     }
 
     override fun allocationSize(value: ClientConfig) = (
             FfiConverterString.allocationSize(value.`serverUrl`) +
-            FfiConverterOptionalTypeClientMode.allocationSize(value.`mode`)
+            FfiConverterOptionalTypeClientMode.allocationSize(value.`mode`) +
+            FfiConverterOptionalString.allocationSize(value.`appServerUrl`)
     )
 
     override fun write(value: ClientConfig, buf: ByteBuffer) {
             FfiConverterString.write(value.`serverUrl`, buf)
             FfiConverterOptionalTypeClientMode.write(value.`mode`, buf)
+            FfiConverterOptionalString.write(value.`appServerUrl`, buf)
     }
 }
 
@@ -10642,6 +10746,49 @@ public object FfiConverterTypeNotificationKind: FfiConverterRustBuffer<Notificat
     override fun allocationSize(value: NotificationKind) = 4UL
 
     override fun write(value: NotificationKind, buf: ByteBuffer) {
+        buf.putInt(value.ordinal + 1)
+    }
+}
+
+
+
+
+
+/**
+ * Why a user is reported (`report_user`).
+ */
+
+enum class ReportReason {
+    
+    SPAM,
+    HARASSMENT,
+    /**
+     * Content not suitable for the user (sexual, violent, ...).
+     */
+    INAPPROPRIATE,
+    SCAM,
+    OTHER;
+
+    
+
+
+    companion object
+}
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeReportReason: FfiConverterRustBuffer<ReportReason> {
+    override fun read(buf: ByteBuffer) = try {
+        ReportReason.values()[buf.getInt() - 1]
+    } catch (e: IndexOutOfBoundsException) {
+        throw RuntimeException("invalid enum value, something is very wrong!!", e)
+    }
+
+    override fun allocationSize(value: ReportReason) = 4UL
+
+    override fun write(value: ReportReason, buf: ByteBuffer) {
         buf.putInt(value.ordinal + 1)
     }
 }

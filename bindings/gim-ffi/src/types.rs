@@ -53,6 +53,29 @@ pub struct PrivacySettings {
     pub blocked_user_ids: Vec<String>,
 }
 
+/// Why a user is reported (`report_user`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum ReportReason {
+    Spam,
+    Harassment,
+    /// Content not suitable for the user (sexual, violent, ...).
+    Inappropriate,
+    Scam,
+    Other,
+}
+
+impl From<ReportReason> for gim_sdk::ReportReason {
+    fn from(reason: ReportReason) -> Self {
+        match reason {
+            ReportReason::Spam => Self::Spam,
+            ReportReason::Harassment => Self::Harassment,
+            ReportReason::Inappropriate => Self::Inappropriate,
+            ReportReason::Scam => Self::Scam,
+            ReportReason::Other => Self::Other,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
 pub enum ChatKind {
     Direct,

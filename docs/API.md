@@ -30,7 +30,8 @@ milliseconds (`u64`). Counts and indices are `u32`.
 1. **Create the client** once per process:
    `createClient(ClientConfig(serverUrl), hooks)` (an app extension passes `mode: Extension`; see
    *App extensions*). `serverUrl` must be an `http://` or `https://`
-   URL with a host, otherwise `InvalidInput`. `hooks` implements `PlatformHooks` (below). If
+   URL with a host, otherwise `InvalidInput`. The optional `appServerUrl` is the gim app server
+   (see *App server*), checked the same way. `hooks` implements `PlatformHooks` (below). If
    `localStateReset()` is `true`, an existing local database could not be opened (its key was
    lost, or it is incompatible) and was discarded with the session and history: show onboarding
    and tell the user that local history is gone. A keystore that cannot be read fails
@@ -292,6 +293,8 @@ is never deleted, so that both processes always lock the same file.
 | `claimHandle(handle)` | | `Server(409)` if taken. |
 | `releaseHandle()` | | `InvalidInput` if no handle is claimed. |
 | `signOut()` | | |
+| `deleteAccount()` | `[hubId]` | See *Account deletion*. |
+| `reportUser(userId, reason, note?, messageIds)` | report id | See *App server*. |
 | `startSync()` / `stopSync()` | | |
 | `setNetworkReachable(reachable)` | | Synchronous, never throws. Becoming reachable reconnects and retries the outbox at once; becoming unreachable changes nothing by itself. |
 | `findUser(handle)` | `UserProfile?` | `null`/`nil` if no such user. |
@@ -353,6 +356,41 @@ newly linked device receives them with the link. Hubs never see them.
   muted chat. Compare `ChatSummary.mutedUntilMs` with the current time to show the state.
 - **Pin** puts the chat at the top of `chatList`; **archive** only sets `ChatSummary.archived`:
   show archived chats apart. A new message does not unarchive a chat.
+
+### App server
+
+`ClientConfig.appServerUrl` points at the gim app server (gim-app). It keeps no account: every
+request is signed with the user's root key. Without it the app works, but nothing is backed up and
+`reportUser` fails with `InvalidInput`.
+
+- **Settings backup**: after each change, the privacy settings (`PrivacySettings`, blocked users
+  included) are sealed with a key derived from the root key and stored there; the server cannot read
+  them. `restoreFromRecovery` brings them back, so blocks survive the loss of every device. A failed
+  backup is only logged; the next change writes it again. Per-chat settings (mute, pin, archive) are
+  not backed up.
+- **Reports**: `reportUser(userId, reason, note?, messageIds)` sends the reported user, a
+  `ReportReason` (`Spam`, `Harassment`, `Inappropriate`, `Scam`, `Other`), an optional note (at
+  most 1000 characters) and up to 50 messages from the local history (text, or a media caption) to
+  the server's moderators, in plaintext: chats are end-to-end encrypted, so what the user picks is
+  all they see. Tell the user so. It does not block: offer `blockUser` alongside. `InvalidInput`
+  for the signed-in user, too many messages or a long note; `NotFound` for an unknown message id.
+
+### Account deletion
+
+`deleteAccount()` deletes the account for good. Ask for an explicit confirmation first (and say
+that it cannot be undone; the recovery code stops working). In order:
+
+1. the user's data on the app server, if one is configured;
+2. the user leaves every chat (best effort; the members see them leave);
+3. the home hub deletes the user, their devices, handles, recovery backup and pending events
+   (`DELETE /v2/users/{userId}`, root-signed);
+4. the user's other hubs do the same, best effort;
+5. this device is wiped like `signOut()` (without the push unregistration: the hubs dropped it).
+
+It returns the other hubs that could not be reached (their records expire on their own). If step 1
+or 3 fails, nothing local is deleted and the call can be repeated; a hub that no longer knows the
+user counts as done. Afterwards create a new client, as after `signOut()`. An app extension cannot
+call it.
 
 ### Hub management
 

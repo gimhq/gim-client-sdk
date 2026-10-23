@@ -512,6 +512,11 @@ uint64_t uniffi_gim_core_fn_method_gimclient_create_group_chat(uint64_t ptr, Rus
 uint64_t uniffi_gim_core_fn_method_gimclient_create_identity(uint64_t ptr, RustBuffer display_name
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_METHOD_GIMCLIENT_DELETE_ACCOUNT
+#define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_METHOD_GIMCLIENT_DELETE_ACCOUNT
+uint64_t uniffi_gim_core_fn_method_gimclient_delete_account(uint64_t ptr
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_METHOD_GIMCLIENT_DELETE_MESSAGE
 #define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_METHOD_GIMCLIENT_DELETE_MESSAGE
 uint64_t uniffi_gim_core_fn_method_gimclient_delete_message(uint64_t ptr, RustBuffer chat_id, RustBuffer message_id
@@ -620,6 +625,11 @@ uint64_t uniffi_gim_core_fn_method_gimclient_remove_hub(uint64_t ptr, RustBuffer
 #ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_METHOD_GIMCLIENT_REMOVE_MEMBER
 #define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_METHOD_GIMCLIENT_REMOVE_MEMBER
 uint64_t uniffi_gim_core_fn_method_gimclient_remove_member(uint64_t ptr, RustBuffer chat_id, RustBuffer user_id
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_METHOD_GIMCLIENT_REPORT_USER
+#define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_METHOD_GIMCLIENT_REPORT_USER
+uint64_t uniffi_gim_core_fn_method_gimclient_report_user(uint64_t ptr, RustBuffer user_id, RustBuffer reason, RustBuffer note, RustBuffer message_ids
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_FN_METHOD_GIMCLIENT_RESTORE_FROM_RECOVERY
@@ -1396,6 +1406,12 @@ uint16_t uniffi_gim_core_checksum_method_gimclient_create_identity(void
     
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_METHOD_GIMCLIENT_DELETE_ACCOUNT
+#define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_METHOD_GIMCLIENT_DELETE_ACCOUNT
+uint16_t uniffi_gim_core_checksum_method_gimclient_delete_account(void
+    
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_METHOD_GIMCLIENT_DELETE_MESSAGE
 #define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_METHOD_GIMCLIENT_DELETE_MESSAGE
 uint16_t uniffi_gim_core_checksum_method_gimclient_delete_message(void
@@ -1525,6 +1541,12 @@ uint16_t uniffi_gim_core_checksum_method_gimclient_remove_hub(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_METHOD_GIMCLIENT_REMOVE_MEMBER
 #define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_METHOD_GIMCLIENT_REMOVE_MEMBER
 uint16_t uniffi_gim_core_checksum_method_gimclient_remove_member(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_METHOD_GIMCLIENT_REPORT_USER
+#define UNIFFI_FFIDEF_UNIFFI_GIM_CORE_CHECKSUM_METHOD_GIMCLIENT_REPORT_USER
+uint16_t uniffi_gim_core_checksum_method_gimclient_report_user(void
     
 );
 #endif
