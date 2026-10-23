@@ -11,7 +11,7 @@ use gim_base::{BaseClient, StateReader, StateStore};
 use gim_common::{ClientId, DeviceRef, GroupId, MessageId, UserId};
 use gim_crypto::{inspect_handshake, CommitOutput, CryptoStore, MlsEngine};
 use gim_proto::envelope::Content;
-use gim_sqlite::{DbKey, SqliteStore};
+use gim_store_sqlite::{DbKey, SqliteStore};
 use gim_test::{Event, FakeDeliveryService, SubmitCommit};
 
 pub const NOW: u64 = 1_790_000_000_000;

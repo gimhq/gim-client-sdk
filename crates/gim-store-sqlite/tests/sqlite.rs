@@ -19,7 +19,7 @@ use gim_base::{
 use gim_common::{ClientId, DeviceRef, MessageId, UserId};
 use gim_crypto::CryptoStore;
 use gim_proto::envelope::{Envelope, MediaInfo, ReceiptKind};
-use gim_sqlite::{SqliteStore, DATABASE_FILE_NAME};
+use gim_store_sqlite::{SqliteStore, DATABASE_FILE_NAME};
 use gim_test::FakeDeliveryService;
 
 #[test]

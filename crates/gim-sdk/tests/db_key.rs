@@ -9,7 +9,7 @@ use gim_base::{BaseError, StateReader, StateStore, StoreTxn};
 use gim_common::UserId;
 use gim_sdk::testing::{FakeTransport, MemorySecretStorage};
 use gim_sdk::{ClientBuilder, ClientError, SecretStorage, SecretStorageError};
-use gim_sqlite::{DbKey, SqliteStore, DATABASE_FILE_NAME};
+use gim_store_sqlite::{DbKey, SqliteStore, DATABASE_FILE_NAME};
 
 type Builder = ClientBuilder<SqliteStore>;
 
@@ -108,7 +108,7 @@ fn wrong_stored_key_resets_the_database() {
 fn m1_plaintext_database_is_reset() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join(DATABASE_FILE_NAME);
-    // An M1 (plaintext) database file; the full fixture is in gim-sqlite.
+    // An M1 (plaintext) database file; the full fixture is in gim-store-sqlite.
     let mut m1 = b"SQLite format 3\0".to_vec();
     m1.resize(4096, 0);
     std::fs::write(&path, m1).unwrap();

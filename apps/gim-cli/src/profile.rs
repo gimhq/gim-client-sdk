@@ -11,7 +11,7 @@ use std::sync::Arc;
 use gim_base::BaseError;
 use gim_sdk::http::Url;
 use gim_sdk::{Client, ClientBuilder, HttpTransport, Session};
-use gim_sqlite::{DbKey, SqliteStore};
+use gim_store_sqlite::{DbKey, SqliteStore};
 use serde::{Deserialize, Serialize};
 
 use crate::error::{CliError, ErrorKind, Result};
@@ -201,7 +201,7 @@ mod tests {
         let root = tempfile::tempdir().unwrap();
         let dir = root.path().join("alice");
         let profile = Profile::create(&dir).unwrap();
-        let db = dir.join(gim_sqlite::DATABASE_FILE_NAME);
+        let db = dir.join(gim_store_sqlite::DATABASE_FILE_NAME);
         // Stands in for an M1 plaintext database.
         fs::write(&db, b"not an encrypted database").unwrap();
         drop(profile.client("http://127.0.0.1:1").unwrap());

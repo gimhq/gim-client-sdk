@@ -9,7 +9,7 @@ use std::path::Path;
 use common::key;
 use gim_base::model::{HubRecord, HubState, KeyPackageRecord};
 use gim_base::{StateReader, StateStore, StoreTxn};
-use gim_sqlite::{SqliteStore, APPLICATION_ID, DATABASE_FILE_NAME, SCHEMA_VERSION};
+use gim_store_sqlite::{SqliteStore, APPLICATION_ID, DATABASE_FILE_NAME, SCHEMA_VERSION};
 use rusqlite::Connection;
 
 /// The migrations as they were at d5ead6d (C4a), before 0004_hubs.sql was

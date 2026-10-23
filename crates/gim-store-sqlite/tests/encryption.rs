@@ -9,7 +9,7 @@ use common::key;
 use gim_base::model::UserInfo;
 use gim_base::{StateReader, StateStore, StoreTxn};
 use gim_common::UserId;
-use gim_sqlite::{
+use gim_store_sqlite::{
     DbKey, OpenError, SqliteStore, APPLICATION_ID, DATABASE_FILE_NAME, SCHEMA_VERSION,
 };
 use rusqlite::Connection;

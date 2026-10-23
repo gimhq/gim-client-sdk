@@ -20,7 +20,7 @@ gim-base.workspace = true
 gim-common.workspace = true
 gim-crypto.workspace = true
 gim-sdk.workspace = true
-gim-sqlite.workspace = true
+gim-store-sqlite.workspace = true
 gim-ui.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["rt", "sync", "time", "macros"] }

@@ -10,7 +10,7 @@ use common::key;
 use gim_base::model::UserInfo;
 use gim_base::{StateReader, StateStore, StoreTxn};
 use gim_common::UserId;
-use gim_sqlite::{DbKey, OpenError, SqliteStore, DATABASE_FILE_NAME, SCHEMA_VERSION};
+use gim_store_sqlite::{DbKey, OpenError, SqliteStore, DATABASE_FILE_NAME, SCHEMA_VERSION};
 use rusqlite::Connection;
 
 fn user(name: &str) -> UserInfo {

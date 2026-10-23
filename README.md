@@ -1,31 +1,37 @@
-# gim-core
+# gim-client-sdk
 
-Rust core shared by the gim native clients (iOS, Android): MLS end-to-end
-encryption (OpenMLS), and — as later work lands — storage, networking, sync,
-outbox and UI-facing services, exposed to Swift and Kotlin through UniFFI.
+Client runtime of gim and every language binding: storage, networking, sync,
+outbox, media and UI-facing services on top of the gim-core protocol crates,
+exposed to Swift and Kotlin through UniFFI.
 
-The workspace is modelled on matrix-rust-sdk: one role per crate, dependencies
-point downwards only
-(`common ← proto ← crypto ← base ← sqlite`, `base + crypto + proto ← sdk ← ui ← ffi`).
+The protocol crates (`gim-common`, `gim-proto`, `gim-identity`, `gim-crypto`,
+`gim-base`) and the `gim-test` fixtures live in
+[gim-core](https://github.com/gimhq/gim-core) and are pinned by commit in
+`Cargo.toml`. To work on both repositories at once, add a local override:
+
+```toml
+[patch."https://github.com/gimhq/gim-core.git"]
+gim-base = { path = "../gim-core/crates/gim-base" }
+gim-common = { path = "../gim-core/crates/gim-common" }
+gim-crypto = { path = "../gim-core/crates/gim-crypto" }
+gim-identity = { path = "../gim-core/crates/gim-identity" }
+gim-proto = { path = "../gim-core/crates/gim-proto" }
+gim-test = { path = "../gim-core/testing/gim-test" }
+```
 
 | Crate | Role |
 |---|---|
-| `crates/gim-common` | ids (`UserId`, `DeviceId`, `GroupId`, `ClientId`, `MessageId`, `DeviceRef`), error helpers, time; no I/O |
-| `crates/gim-proto` | gim-server v1 REST/stream DTOs, gim-hub API v2 DTOs (`v2`, vendored contract in `contract/hub-v2/`) and the versioned CBOR envelope schema |
-| `crates/gim-crypto` | OpenMLS wrapper (`MlsEngine`), `CryptoStore` trait + `MemoryCryptoStore`; no networking |
-| `crates/gim-identity` | root and device Ed25519 keys, `user_id`/`device_id` derivation, signed `DeviceCert` and `DeviceList` (spec: `docs/identity.md`); no I/O |
-| `crates/gim-base` | client state machine without networking, `StateStore` trait (skeleton) |
-| `crates/gim-sqlite` | rusqlite `StateStore` + `CryptoStore` on one database (skeleton) |
-| `crates/gim-sdk` | async `Client`: HTTP, WebSocket/long-poll, sync, outbox, media (skeleton) |
-| `crates/gim-ui` | chat list and timeline `VectorDiff` streams (skeleton) |
+| `crates/gim-store-sqlite` | rusqlite + SQLCipher `StateStore` + `CryptoStore` on one database |
+| `crates/gim-sdk` | async `Client`: HTTP, WebSocket/long-poll, sync, outbox, media |
+| `crates/gim-ui` | chat list and timeline `VectorDiff` streams |
 | `bindings/gim-ffi` | the only UniFFI crate; builds `libgim_core.{so,a,dylib}` |
 | `bindings/android`, `bindings/apple` | packaging scripts |
 | `uniffi-bindgen` | `uniffi-bindgen` binary used by the packaging scripts |
-| `testing/gim-test` | fixtures and `FakeDeliveryService` (in-memory gim-server delivery) |
+| `apps/gim-cli` | Linux CLI client |
 | `testing/gim-integration-testing` | tests against a real gim-hub container (`scripts/integration-test.sh`) |
 
-MLS ciphersuite: `MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519`, pure-Rust
-crypto (RustCrypto provider), no C toolchain needed.
+The FFI API is documented in `docs/API.md`. The library, Swift module
+(`GIMCore`) and Kotlin package (`im.g.gimcore`) keep their gim-core names.
 
 ## Checks
 
@@ -281,33 +287,7 @@ cargo run -p uniffi-bindgen -- generate --library target/debug/libgim_core.so --
 
 Kotlin package `im.g.gimcore`; Swift module `GIMCore` (FFI module `GIMCoreFFI`).
 
-## Envelope and media formats
-
-**Envelope** (`gim_proto::envelope`, carried inside MLS application messages):
-one CBOR map with short keys — `v` version (`1`), `id` message id, `ts` sent
-time in Unix ms, optional `re` reply-to id (text and media only), `c` content
-tagged by `t`: `text`, `media`, `edit`, `delete`, `reaction`, `receipt`
-(`delivered` | `read`), `typing`, `group_info`. Unknown keys are ignored;
-version 0, newer versions and unknown content tags are rejected. The full key
-table is in the module docs. `gim_crypto::{encrypt_envelope,
-decrypt_to_envelope}` wrap encoding plus MLS application encryption.
-
-**Media** (`gim_crypto::media`): chunked AES-256-GCM with a fresh random key
-per blob.
-
-```text
-header  = "GIM1" || chunk_size (u32 BE, default 65536) || nonce_prefix (8 random bytes)
-blob    = header || chunk_0 || ... || chunk_n
-chunk_i = AES-256-GCM(key, nonce = nonce_prefix || i (u32 BE),
-                      aad = header || last_flag (1 byte), plaintext_i) with 16-byte tag
-```
-
-All chunks but the last carry exactly `chunk_size` plaintext bytes; empty
-media is one empty final chunk. The key and the SHA-256 of the whole blob
-travel in the envelope's media map, never to gim-server. `encrypt_media` /
-`decrypt_media` work on buffers (digest checked in constant time before
-decrypting); `MediaEncryptor` / `MediaDecryptor` stream over
-`std::io::Read`/`Write`.
+The envelope and media formats are specified in gim-core.
 
 ## iOS packaging
 

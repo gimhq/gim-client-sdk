@@ -18,7 +18,7 @@ use gim_sdk::{
     Client, ClientBuilder, ClientError, ClientMode, NotificationKind, PushRegistration,
     SecretStorage, StoreLock, GENERIC_BODY, LOCK_FILE_NAME,
 };
-use gim_sqlite::{DbKey, SqliteStore, DATABASE_FILE_NAME};
+use gim_store_sqlite::{DbKey, SqliteStore, DATABASE_FILE_NAME};
 use tempfile::TempDir;
 
 use common::{Device, FlakyTransport};

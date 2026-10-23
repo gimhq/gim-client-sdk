@@ -1171,13 +1171,13 @@ dependencies = [
 [[package]]
 name = "gim-base"
 version = "0.1.0"
+source = "git+https://github.com/gimhq/gim-core.git?rev=d2a58f853366e772668794ad7b16d0d309ee534b#d2a58f853366e772668794ad7b16d0d309ee534b"
 dependencies = [
  "getrandom 0.2.17",
  "gim-common",
  "gim-crypto",
  "gim-identity",
  "gim-proto",
- "gim-test",
  "openmls_memory_storage",
  "thiserror",
 ]
@@ -1192,7 +1192,7 @@ dependencies = [
  "gim-common",
  "gim-identity",
  "gim-sdk",
- "gim-sqlite",
+ "gim-store-sqlite",
  "serde",
  "serde_json",
  "tempfile",
@@ -1202,29 +1202,27 @@ dependencies = [
 [[package]]
 name = "gim-common"
 version = "0.1.0"
+source = "git+https://github.com/gimhq/gim-core.git?rev=d2a58f853366e772668794ad7b16d0d309ee534b#d2a58f853366e772668794ad7b16d0d309ee534b"
 dependencies = [
  "serde",
- "serde_json",
  "thiserror",
 ]
 
 [[package]]
 name = "gim-crypto"
 version = "0.1.0"
+source = "git+https://github.com/gimhq/gim-core.git?rev=d2a58f853366e772668794ad7b16d0d309ee534b#d2a58f853366e772668794ad7b16d0d309ee534b"
 dependencies = [
  "aes-gcm",
  "ciborium",
- "data-encoding",
  "getrandom 0.2.17",
  "gim-common",
  "gim-identity",
  "gim-proto",
- "gim-test",
  "openmls",
  "openmls_memory_storage",
  "openmls_rust_crypto",
  "openmls_traits",
- "serde_json",
  "sha2 0.10.9",
  "subtle",
  "thiserror",
@@ -1240,7 +1238,7 @@ dependencies = [
  "gim-crypto",
  "gim-ffi",
  "gim-sdk",
- "gim-sqlite",
+ "gim-store-sqlite",
  "gim-ui",
  "tempfile",
  "thiserror",
@@ -1252,6 +1250,7 @@ dependencies = [
 [[package]]
 name = "gim-identity"
 version = "0.1.0"
+source = "git+https://github.com/gimhq/gim-core.git?rev=d2a58f853366e772668794ad7b16d0d309ee534b#d2a58f853366e772668794ad7b16d0d309ee534b"
 dependencies = [
  "aes-gcm",
  "argon2",
@@ -1260,9 +1259,7 @@ dependencies = [
  "ed25519-dalek",
  "getrandom 0.2.17",
  "gim-common",
- "gim-identity",
  "hkdf 0.12.4",
- "serde_json",
  "sha2 0.10.9",
  "thiserror",
  "x25519-dalek 2.0.1",
@@ -1290,6 +1287,7 @@ dependencies = [
 [[package]]
 name = "gim-proto"
 version = "0.1.0"
+source = "git+https://github.com/gimhq/gim-core.git?rev=d2a58f853366e772668794ad7b16d0d309ee534b#d2a58f853366e772668794ad7b16d0d309ee534b"
 dependencies = [
  "base64 0.22.1",
  "ciborium",
@@ -1315,7 +1313,7 @@ dependencies = [
  "gim-identity",
  "gim-proto",
  "gim-sdk",
- "gim-sqlite",
+ "gim-store-sqlite",
  "gim-test",
  "reqwest",
  "rustls",
@@ -1333,7 +1331,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "gim-sqlite"
+name = "gim-store-sqlite"
 version = "0.1.0"
 dependencies = [
  "ciborium",
@@ -1341,7 +1339,7 @@ dependencies = [
  "gim-common",
  "gim-crypto",
  "gim-proto",
- "gim-sqlite",
+ "gim-store-sqlite",
  "gim-test",
  "openmls_sqlite_storage",
  "rusqlite",
@@ -1356,6 +1354,7 @@ dependencies = [
 [[package]]
 name = "gim-test"
 version = "0.1.0"
+source = "git+https://github.com/gimhq/gim-core.git?rev=d2a58f853366e772668794ad7b16d0d309ee534b#d2a58f853366e772668794ad7b16d0d309ee534b"
 dependencies = [
  "gim-common",
  "gim-identity",

@@ -83,7 +83,7 @@ jobs:
     timeout-minutes: 120
     defaults:
       run:
-        working-directory: gim-core
+        working-directory: gim-client-sdk
     env:
       CARGO_INCREMENTAL: 0
       CARGO_PROFILE_DEV_DEBUG: 0
@@ -96,7 +96,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          path: gim-core
+          path: gim-client-sdk
       - name: Pinned gim-hub revision
         id: hub
         run: echo "rev=$(scripts/gim-hub-dev.sh rev)" >> "$GITHUB_OUTPUT"
@@ -118,8 +118,8 @@ jobs:
           path: |
             cargo-home/registry
             cargo-home/git
-            gim-core/target
-          key: integration-${{ runner.os }}-${{ hashFiles('gim-core/Cargo.lock') }}
+            gim-client-sdk/target
+          key: integration-${{ runner.os }}-${{ hashFiles('gim-client-sdk/Cargo.lock') }}
           restore-keys: integration-${{ runner.os }}-
       - name: Docker network
         run: docker network create gim-ci
@@ -150,7 +150,7 @@ jobs:
       - name: Fix cache ownership
         if: always()
         working-directory: ${{ github.workspace }}
-        run: sudo chown -R "$(id -u):$(id -g)" cargo-home gim-core/target 2>/dev/null || true
+        run: sudo chown -R "$(id -u):$(id -g)" cargo-home gim-client-sdk/target 2>/dev/null || true
 
   xcframework:
     needs: rust

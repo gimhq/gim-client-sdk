@@ -18,7 +18,7 @@ use gim_sdk::{
     Client, ClientBuilder, ClientError, SecretStorage, DEVICE_KEY_SECRET_KEY, ROOT_KEY_SECRET_KEY,
     SESSION_SECRET_KEY,
 };
-use gim_sqlite::{DbKey, SqliteStore};
+use gim_store_sqlite::{DbKey, SqliteStore};
 use tempfile::TempDir;
 
 use common::{FlakyTransport, Step};

@@ -15,7 +15,7 @@ use gim_sdk::{
     DEFAULT_STORE_LOCK_TIMEOUT, DEVICE_KEY_SECRET_KEY, OUTGOING_DIR, PUSH_REGISTRATION_SECRET_KEY,
     ROOT_KEY_SECRET_KEY, SESSION_SECRET_KEY,
 };
-use gim_sqlite::{DbKey, SqliteStore, DATABASE_FILE_NAME};
+use gim_store_sqlite::{DbKey, SqliteStore, DATABASE_FILE_NAME};
 use tokio::sync::{broadcast, watch};
 use tokio::task::JoinHandle;
 use url::Url;
