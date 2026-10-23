@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# Builds GIMCore.xcframework (arm64 device + arm64 simulator static libraries)
-# and the matching Swift sources. macOS only (needs Xcode).
+# Builds GIMCore.xcframework (static libraries: arm64 iOS device, arm64 iOS
+# simulator, and arm64 + x86_64 macOS in one universal library), the matching
+# Swift sources and a Swift package manifest for both platforms. macOS only
+# (needs Xcode).
 #
 #   bindings/apple/build-xcframework.sh
 #
@@ -9,6 +11,7 @@
 #   GIMCore.xcframework.zip
 #   GIMCore.xcframework.zip.sha256
 #   Sources/GIMCore/GIMCore.swift
+#   Package.swift (iOS 18, macOS 15; the zip as binary target)
 #   GIM_CORE_VERSION
 set -euo pipefail
 
@@ -21,16 +24,18 @@ repo=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 cd "$repo"
 
 export IPHONEOS_DEPLOYMENT_TARGET=18.0
+export MACOSX_DEPLOYMENT_TARGET=15.0
 
 device_target=aarch64-apple-ios
 # Apple-silicon simulators only; Intel-Mac simulators (x86_64-apple-ios) are
 # not supported.
 sim_target=aarch64-apple-ios-sim
+mac_targets=(aarch64-apple-darwin x86_64-apple-darwin)
 profile=release-apple
 out=out/ios
 lib_name=libgim_core.a
 
-rustup target add "$device_target" "$sim_target"
+rustup target add "$device_target" "$sim_target" "${mac_targets[@]}"
 rustup component add llvm-tools
 # rustc's own LLVM tools: Xcode's nm/strip cannot read objects carrying bitcode
 # from rustc's newer LLVM.
@@ -39,12 +44,17 @@ llvm_bin=$(rustc --print sysroot)/lib/rustlib/$(rustc -vV | sed -n 's/^host: //p
 # `--crate-type staticlib` alone: with gim-ffi's "lib" crate type in the same
 # build the archive also bundles every dependency's rlib objects (and their
 # embedded bitcode) next to the LTO output, which multiplies its size.
-for target in "$device_target" "$sim_target"; do
+for target in "$device_target" "$sim_target" "${mac_targets[@]}"; do
     cargo rustc -p gim-ffi --lib --crate-type staticlib --profile "$profile" --target "$target"
 done
 
 device_lib=target/$device_target/$profile/$lib_name
 sim_lib=target/$sim_target/$profile/$lib_name
+mac_libs=()
+for target in "${mac_targets[@]}"; do
+    mac_libs+=("target/$target/$profile/$lib_name")
+done
+mac_lib=target/apple-darwin-universal/$profile/$lib_name
 
 GIM_CORE_LIB=$device_lib bash bindings/apple/generate-swift.sh
 
@@ -62,7 +72,7 @@ bitcode_members() {
 # rustc/cc produced it. Do not strip local symbols: __eh_frame relocates
 # against ltmp*/GCC_except_table* labels, and ld asserts ("LSDA in __eh_frame
 # section not supported") once they are gone.
-for lib in "$device_lib" "$sim_lib"; do
+for lib in "$device_lib" "$sim_lib" "${mac_libs[@]}"; do
     lib_path=$repo/$lib
     if [[ -n $("$llvm_bin/llvm-ar" t "$lib_path" | sort | uniq -d) ]]; then
         echo "error: $lib has duplicate member names" >&2
@@ -102,12 +112,18 @@ for lib in "$device_lib" "$sim_lib"; do
     fi
 done
 
+# One macOS library holding both architectures: an xcframework takes one
+# library per platform variant.
+mkdir -p "$(dirname "$mac_lib")"
+lipo -create "${mac_libs[@]}" -output "$mac_lib"
+
 rm -rf "$out"
 mkdir -p "$out/Sources/GIMCore"
 
 xcodebuild -create-xcframework \
     -library "$device_lib" -headers out/swift/include \
     -library "$sim_lib" -headers out/swift/include \
+    -library "$mac_lib" -headers out/swift/include \
     -output "$out/GIMCore.xcframework"
 
 (cd "$out" && ditto -c -k --sequesterRsrc --keepParent GIMCore.xcframework GIMCore.xcframework.zip)
@@ -115,10 +131,11 @@ swift package compute-checksum "$out/GIMCore.xcframework.zip" > "$out/GIMCore.xc
 
 cp out/swift/Sources/GIMCore/GIMCore.swift "$out/Sources/GIMCore/GIMCore.swift"
 cp out/swift/GIM_CORE_VERSION "$out/GIM_CORE_VERSION"
+cp bindings/apple/Package.swift "$out/Package.swift"
 
 echo "GIMCore.xcframework $(cat "$out/GIM_CORE_VERSION") written to $out"
 echo "checksum: $(cat "$out/GIMCore.xcframework.zip.sha256")"
-for lib in "$device_lib" "$sim_lib"; do
+for lib in "$device_lib" "$sim_lib" "$mac_lib"; do
     echo "$lib: $(wc -c < "$lib" | tr -d ' ') bytes"
 done
 echo "$out/GIMCore.xcframework.zip: $(wc -c < "$out/GIMCore.xcframework.zip" | tr -d ' ') bytes"

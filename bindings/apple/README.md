@@ -1,11 +1,11 @@
 # Apple packaging
 
-Scripts that turn `gim-ffi` into a Swift package input for the iOS client.
+Scripts that turn `gim-ffi` into a Swift package for the iOS and macOS clients.
 
 | Script | Host | Output |
 |---|---|---|
 | `generate-swift.sh` | Linux or macOS | `out/swift/` — Swift bindings, C header, module map |
-| `build-xcframework.sh` | macOS + Xcode | `out/ios/` — `GIMCore.xcframework` (+ zip, checksum), Swift sources |
+| `build-xcframework.sh` | macOS + Xcode | `out/ios/` — `GIMCore.xcframework` (+ zip, checksum), Swift sources, `Package.swift` |
 
 Wrappers with the same names live in `scripts/`.
 
@@ -25,10 +25,12 @@ out/swift/
 
 ## build-xcframework.sh
 
-Builds the `libgim_core.a` static library for `aarch64-apple-ios` (device) and
-`aarch64-apple-ios-sim` (simulator) with `IPHONEOS_DEPLOYMENT_TARGET=18.0`,
+Builds the `libgim_core.a` static library for `aarch64-apple-ios` (device),
+`aarch64-apple-ios-sim` (simulator), `aarch64-apple-darwin` and
+`x86_64-apple-darwin` (macOS, joined into one universal library with `lipo`)
+with `IPHONEOS_DEPLOYMENT_TARGET=18.0` and `MACOSX_DEPLOYMENT_TARGET=15.0`,
 generates the Swift bindings from the device library, removes embedded bitcode
-from both archives (see *Bitcode*), fails if any member still has a
+from every archive (see *Bitcode*), fails if any member still has a
 `__bitcode` section (`llvm-objdump`) or the `uniffi_gim_core_fn_*` exports are
 missing (`llvm-nm`), and packages:
 
@@ -38,10 +40,13 @@ out/ios/
   GIMCore.xcframework.zip
   GIMCore.xcframework.zip.sha256   # swift package compute-checksum
   Sources/GIMCore/GIMCore.swift
+  Package.swift                    # iOS 18 + macOS 15, from bindings/apple
   GIM_CORE_VERSION
 ```
 
-The iOS client vendors `GIMCore.xcframework.zip` and `Sources/GIMCore`,
+The directory is a complete Swift package: copy it into a client and add it
+as a local package (product `GIMCore`). CI uploads it as the
+`gim-core-ios-<sha>` artifact of every `main` push. The iOS client vendors `GIMCore.xcframework.zip` and `Sources/GIMCore`,
 pinned by `GIM_CORE_VERSION`. The script is idempotent: `out/ios` is rebuilt
 from scratch on every run.
 
@@ -52,7 +57,8 @@ must stay below 50 MB (the CI `xcframework` job fails at 50,000,000 bytes and
 prints the slice and zip sizes). What keeps it small:
 
 - No `x86_64-apple-ios` slice: the simulator slice is Apple silicon only.
-  **Intel-Mac simulators are not supported.**
+  **Intel-Mac simulators are not supported.** The macOS library does carry
+  x86_64, for Intel Macs.
 - `cargo rustc --crate-type staticlib`: built together with gim-ffi's `lib`
   crate type, the archive also carries every dependency's rlib objects with
   embedded bitcode next to the LTO output (about 5x larger).

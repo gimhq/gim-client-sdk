@@ -139,7 +139,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: aarch64-apple-ios, aarch64-apple-ios-sim
+          targets: aarch64-apple-ios, aarch64-apple-ios-sim, aarch64-apple-darwin, x86_64-apple-darwin
           components: llvm-tools
       - uses: Swatinem/rust-cache@v2
       - name: Build GIMCore.xcframework
@@ -160,9 +160,12 @@ jobs:
           xcf=out/ios/GIMCore.xcframework
           fail=0
           for slice in ios-arm64:iphoneos:arm64-apple-ios18.0 \
-                       ios-arm64-simulator:iphonesimulator:arm64-apple-ios18.0-simulator; do
+                       ios-arm64-simulator:iphonesimulator:arm64-apple-ios18.0-simulator \
+                       macos-arm64_x86_64:macosx:arm64-apple-macos15.0 \
+                       macos-arm64_x86_64:macosx:x86_64-apple-macos15.0; do
             IFS=: read -r dir sdk triple <<< "$slice"
             lib=$xcf/$dir/libgim_core.a
+            name=$dir-${triple%%-*}
             # An app executable, and a relocatable link of every member as
             # SwiftPM does when it links a package target.
             for kind in executable relocatable; do
@@ -170,21 +173,21 @@ jobs:
                 args=(bindings/apple/link-test/main.c "$lib"
                       -framework Security -framework SystemConfiguration
                       -framework CoreFoundation -lc++ -lresolv
-                      -o "$RUNNER_TEMP/link-test-$dir")
+                      -o "$RUNNER_TEMP/link-test-$name")
               else
                 args=(-nostdlib -Xlinker -r -Xlinker -all_load "$lib"
-                      -o "$RUNNER_TEMP/GIMCore-$dir.o")
+                      -o "$RUNNER_TEMP/GIMCore-$name.o")
               fi
-              log=$RUNNER_TEMP/link-$kind-$dir.log
+              log=$RUNNER_TEMP/link-$kind-$name.log
               status=0
               xcrun --sdk "$sdk" clang -target "$triple" -I "$xcf/$dir/Headers" \
                 "${args[@]}" > "$log" 2>&1 || status=$?
               cat "$log"
               if [ "$status" -ne 0 ] || grep -q 'Assertion failed' "$log"; then
-                echo "error: $kind link of $dir failed (exit $status)"
+                echo "error: $kind link of $name failed (exit $status)"
                 fail=1
               else
-                echo "$kind link of $dir: ok"
+                echo "$kind link of $name: ok"
               fi
             done
           done
@@ -197,4 +200,5 @@ jobs:
             out/ios/GIMCore.xcframework.zip
             out/ios/GIMCore.xcframework.zip.sha256
             out/ios/Sources/**
+            out/ios/Package.swift
             out/ios/GIM_CORE_VERSION
