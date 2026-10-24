@@ -6,8 +6,8 @@ use gim_ui::VectorDiff;
 use crate::{
     ChatKind, ChatListDiff, ChatState, ChatSummary, DeviceInfo, HubInfo, HubState, MediaRef,
     MembershipChangeKind, MessageContent, MessageItem, MessagePreview, NotificationContent,
-    NotificationKind, PushRegistration, ReactionGroup, ReplyPreview, SendFailure, SendState,
-    TimelineDiff, TimelineItem, UserProfile,
+    NotificationKind, PreviewKind, PushRegistration, ReactionGroup, ReplyPreview, SendFailure,
+    SendState, TimelineDiff, TimelineItem, UserProfile,
 };
 
 /// Maps a gim-ui diff onto an FFI diff enum with the same variants.
@@ -132,11 +132,23 @@ impl From<gim_ui::ChatState> for ChatState {
     }
 }
 
+impl From<gim_ui::PreviewKind> for PreviewKind {
+    fn from(kind: gim_ui::PreviewKind) -> Self {
+        match kind {
+            gim_ui::PreviewKind::Text => Self::Text,
+            gim_ui::PreviewKind::Photo => Self::Photo,
+            gim_ui::PreviewKind::File { file_name } => Self::File { file_name },
+            gim_ui::PreviewKind::Deleted => Self::Deleted,
+        }
+    }
+}
+
 impl From<gim_ui::MessagePreview> for MessagePreview {
     fn from(p: gim_ui::MessagePreview) -> Self {
         Self {
             sender_name: p.sender_name,
             text: p.text,
+            kind: p.kind.into(),
             sent_at_ms: p.sent_at_ms,
             is_own: p.is_own,
             send_state: p.send_state.map(Into::into),
@@ -244,6 +256,7 @@ impl From<gim_ui::ReplyPreview> for ReplyPreview {
             message_id: r.message_id.into(),
             sender_name: r.sender_name,
             text: r.text,
+            kind: r.kind.into(),
         }
     }
 }

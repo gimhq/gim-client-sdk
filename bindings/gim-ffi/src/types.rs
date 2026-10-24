@@ -132,13 +132,32 @@ pub enum ChatState {
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
 pub struct MessagePreview {
     pub sender_name: String,
-    /// Plain-text rendering ("Photo", "File: report.pdf" for media).
+    /// Plain-text rendering in English ("Photo", "File: report.pdf" for
+    /// media); apps that localize render `kind` instead.
     pub text: String,
+    /// What the message is, for a rendering in the app's language.
+    pub kind: PreviewKind,
     pub sent_at_ms: u64,
     pub is_own: bool,
     /// Delivery state of an own message, for the ticks of the row (as
     /// `MessageItem.send_state`); `None` for messages from others.
     pub send_state: Option<SendState>,
+}
+
+/// What a previewed message is. `Text` covers text messages and media with
+/// a caption (the preview's `text`, user content); the other kinds have a
+/// fixed English `text` an app may replace with its own string.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Enum)]
+pub enum PreviewKind {
+    Text,
+    /// An image without a caption ("Photo").
+    Photo,
+    /// Another file without a caption ("File: <name>", or "File").
+    File {
+        file_name: Option<String>,
+    },
+    /// A deleted message ("Message deleted").
+    Deleted,
 }
 
 /// One row of a chat timeline.
@@ -227,7 +246,9 @@ pub struct MediaRef {
 pub struct ReplyPreview {
     pub message_id: String,
     pub sender_name: String,
+    /// As `MessagePreview.text`.
     pub text: String,
+    pub kind: PreviewKind,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]

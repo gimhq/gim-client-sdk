@@ -77,13 +77,32 @@ impl From<model::Membership> for ChatState {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MessagePreview {
     pub sender_name: String,
-    /// Plain-text rendering ("Photo", "File: report.pdf" for media).
+    /// Plain-text rendering in English ("Photo", "File: report.pdf" for
+    /// media); apps that localize render [`MessagePreview::kind`] instead.
     pub text: String,
+    /// What the message is, for a rendering in the app's language.
+    pub kind: PreviewKind,
     pub sent_at_ms: u64,
     pub is_own: bool,
     /// Delivery state of an own message, as in the timeline; `None` for
     /// messages from others.
     pub send_state: Option<SendState>,
+}
+
+/// What a previewed message is. `Text` covers text messages and media with
+/// a caption (the preview's `text`, user content); the other kinds have a
+/// fixed English `text` an app may replace with its own string.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PreviewKind {
+    Text,
+    /// An image without a caption ("Photo").
+    Photo,
+    /// Another file without a caption ("File: <name>", or "File").
+    File {
+        file_name: Option<String>,
+    },
+    /// A deleted message ("Message deleted").
+    Deleted,
 }
 
 /// One row of a chat timeline.
@@ -177,7 +196,9 @@ pub struct MediaRef {
 pub struct ReplyPreview {
     pub message_id: MessageId,
     pub sender_name: String,
+    /// As [`MessagePreview::text`].
     pub text: String,
+    pub kind: PreviewKind,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -277,6 +298,7 @@ pub(crate) fn chat_list_item<R: StateReader + ?Sized>(
             Some(message) => Some(MessagePreview {
                 sender_name: profile(store, Some(chat), &message.sender.user_id)?.display_name,
                 text: preview_text(&message),
+                kind: preview_kind(&message),
                 sent_at_ms: message.sent_at_ms,
                 is_own: &message.sender.user_id == own,
                 send_state: send_state(store, &message)?,
@@ -308,31 +330,49 @@ pub(crate) fn chat_list_item<R: StateReader + ?Sized>(
 
 /// Plain-text rendering of a message for previews.
 pub(crate) fn preview_text(message: &Message) -> String {
-    if message.deleted {
-        return "Message deleted".to_string();
+    match preview_kind(message) {
+        PreviewKind::Deleted => "Message deleted".to_string(),
+        PreviewKind::Photo => "Photo".to_string(),
+        PreviewKind::File {
+            file_name: Some(name),
+        } => format!("File: {name}"),
+        PreviewKind::File { file_name: None } => "File".to_string(),
+        PreviewKind::Text => match &message.content {
+            model::MessageContent::Text { body } => body.clone(),
+            model::MessageContent::Media { caption, .. } => caption.clone().unwrap_or_default(),
+            model::MessageContent::PendingMedia(pending) => {
+                pending.caption.clone().unwrap_or_default()
+            }
+        },
     }
-    let media_text = |mime: &str, file_name: Option<&str>, caption: Option<&str>| {
-        if let Some(caption) = caption.filter(|c| !c.is_empty()) {
-            caption.to_string()
+}
+
+/// What `message` is, for previews.
+pub(crate) fn preview_kind(message: &Message) -> PreviewKind {
+    if message.deleted {
+        return PreviewKind::Deleted;
+    }
+    let media_kind = |mime: &str, file_name: Option<&str>, caption: Option<&str>| {
+        if caption.is_some_and(|c| !c.is_empty()) {
+            PreviewKind::Text
         } else if mime.starts_with("image/") {
-            "Photo".to_string()
+            PreviewKind::Photo
         } else {
-            match file_name {
-                Some(name) => format!("File: {name}"),
-                None => "File".to_string(),
+            PreviewKind::File {
+                file_name: file_name.map(str::to_string),
             }
         }
     };
     match &message.content {
-        model::MessageContent::Text { body } => body.clone(),
+        model::MessageContent::Text { .. } => PreviewKind::Text,
         model::MessageContent::Media { media, caption } => {
-            media_text(&media.mime, media.file_name.as_deref(), caption.as_deref())
+            media_kind(&media.mime, media.file_name.as_deref(), caption.as_deref())
         }
         model::MessageContent::PendingMedia(pending) => {
             let file_name = std::path::Path::new(&pending.local_path)
                 .file_name()
                 .and_then(|n| n.to_str());
-            media_text(&pending.mime, file_name, pending.caption.as_deref())
+            media_kind(&pending.mime, file_name, pending.caption.as_deref())
         }
     }
 }

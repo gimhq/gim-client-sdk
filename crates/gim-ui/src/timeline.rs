@@ -19,8 +19,8 @@ use tokio::task::JoinHandle;
 
 use crate::diff;
 use crate::items::{
-    membership_change_kind, message_content, preview_text, profile, reaction_groups, send_state,
-    ChatState, MessageItem, ReplyPreview, TimelineItem, UserProfile,
+    membership_change_kind, message_content, preview_kind, preview_text, profile, reaction_groups,
+    send_state, ChatState, MessageItem, ReplyPreview, TimelineItem, UserProfile,
 };
 use crate::listener::{lock, own_user, recv_batch, with_state, Received};
 use crate::Result;
@@ -492,6 +492,7 @@ impl State {
                         message_id: target.message_id.clone(),
                         sender_name: self.profile(store, &target.sender.user_id)?.display_name,
                         text: preview_text(&target),
+                        kind: preview_kind(&target),
                     }),
                     None => None,
                 }
