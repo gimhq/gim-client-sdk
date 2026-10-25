@@ -132,7 +132,7 @@ async fn open(transport: &FakeTransport, hooks: &Arc<Hooks>) -> Arc<GimClient> {
     let config = ClientConfig {
         server_url: "https://gim.example.org".to_string(),
         mode: None,
-        meta_server_url: None,
+        keep_server_url: None,
     };
     create_client_with_fake_transport(config, hooks.clone(), transport.clone())
         .await

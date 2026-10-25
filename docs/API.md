@@ -30,8 +30,8 @@ milliseconds (`u64`). Counts and indices are `u32`.
 1. **Create the client** once per process:
    `createClient(ClientConfig(serverUrl), hooks)` (an app extension passes `mode: Extension`; see
    *App extensions*). `serverUrl` must be an `http://` or `https://`
-   URL with a host, otherwise `InvalidInput`. The optional `metaServerUrl` is the gim meta server
-   (see *Meta server*), checked the same way. `hooks` implements `PlatformHooks` (below). If
+   URL with a host, otherwise `InvalidInput`. The optional `keepServerUrl` is the gim keep server
+   (see *Keep server*), checked the same way. `hooks` implements `PlatformHooks` (below). If
    `localStateReset()` is `true`, an existing local database could not be opened (its key was
    lost, or it is incompatible) and was discarded with the session and history: show onboarding
    and tell the user that local history is gone. A keystore that cannot be read fails
@@ -307,7 +307,7 @@ is never deleted, so that both processes always lock the same file.
 | `releaseHandle()` | | `InvalidInput` if no handle is claimed. |
 | `signOut()` | | |
 | `deleteAccount()` | `[hubId]` | See *Account deletion*. |
-| `reportUser(userId, reason, note?, messageIds)` | report id | See *Meta server*. |
+| `reportUser(userId, reason, note?, messageIds)` | report id | See *Keep server*. |
 | `startSync()` / `stopSync()` | | |
 | `setNetworkReachable(reachable)` | | Synchronous, never throws. Becoming reachable reconnects and retries the outbox at once; becoming unreachable changes nothing by itself. |
 | `findUser(handle)` | `UserProfile?` | `null`/`nil` if no such user. |
@@ -370,9 +370,9 @@ newly linked device receives them with the link. Hubs never see them.
 - **Pin** puts the chat at the top of `chatList`; **archive** only sets `ChatSummary.archived`:
   show archived chats apart. A new message does not unarchive a chat.
 
-### Meta server
+### Keep server
 
-`ClientConfig.metaServerUrl` points at the gim meta server (gim-meta). It keeps no account: every
+`ClientConfig.keepServerUrl` points at the gim keep server (gim-keep). It keeps no account: every
 request is signed with the user's root key. Without it the app works, but nothing is backed up and
 `reportUser` fails with `InvalidInput`.
 
@@ -393,7 +393,7 @@ request is signed with the user's root key. Without it the app works, but nothin
 `deleteAccount()` deletes the account for good. Ask for an explicit confirmation first (and say
 that it cannot be undone; the recovery code stops working). In order:
 
-1. the user's data on the meta server, if one is configured;
+1. the user's data on the keep server, if one is configured;
 2. the user leaves every chat (best effort; the members see them leave);
 3. the home hub deletes the user, their devices, handles, recovery backup and pending events
    (`DELETE /v2/users/{userId}`, root-signed);

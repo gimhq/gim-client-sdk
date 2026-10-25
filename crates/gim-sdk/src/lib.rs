@@ -22,9 +22,9 @@ mod hub_admin;
 mod hubs;
 mod identity;
 mod invites;
+mod keep_server;
 mod link;
 mod media;
-mod meta_server;
 mod outbox;
 mod push;
 pub mod recovery_kit;
@@ -51,16 +51,16 @@ pub use history::Backfill;
 pub use hosting::{
     HOSTING_RECORD_CHECK_INTERVAL, HOSTING_RECORD_LIFETIME, HOSTING_RECORD_RENEW_BEFORE,
 };
-pub use http::{HttpConfig, HttpMetaServer, HttpTransport};
+pub use http::{HttpConfig, HttpKeepServer, HttpTransport};
 pub use hubs::{HubConnector, HubStatus};
 pub use identity::RecoveryRotation;
 pub use invites::INVITE_RETRY_MAX;
-pub use link::{LinkResult, LinkSession, PendingApproval, Sas, LINK_BUNDLE_LIFETIME, LINK_TIMEOUT};
-pub use media::{DOWNLOAD_PIECE, OUTGOING_DIR};
-pub use meta_server::{
-    AbuseReport, MetaServer, ReportReason, ReportedMessage, StoredSlot, MAX_REPORTED_MESSAGES,
+pub use keep_server::{
+    AbuseReport, KeepServer, ReportReason, ReportedMessage, StoredSlot, MAX_REPORTED_MESSAGES,
     MAX_REPORT_NOTE, PRIVACY_SLOT,
 };
+pub use link::{LinkResult, LinkSession, PendingApproval, Sas, LINK_BUNDLE_LIFETIME, LINK_TIMEOUT};
+pub use media::{DOWNLOAD_PIECE, OUTGOING_DIR};
 pub use outbox::OutboxSender;
 pub use push::{
     NotificationContent, NotificationKind, PushRegistration, GENERIC_BODY,

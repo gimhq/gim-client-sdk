@@ -19,12 +19,12 @@ publish = false
 [workspace.dependencies]
 # Protocol crates of gim-core, pinned by commit. For local work on both
 # repositories, override with `[patch."https://github.com/gimhq/gim-core.git"]`.
-gim-base = { git = "https://github.com/gimhq/gim-core.git", rev = "569ea70da2b905173e4768866cd9676e19820c9a" }
-gim-common = { git = "https://github.com/gimhq/gim-core.git", rev = "569ea70da2b905173e4768866cd9676e19820c9a" }
-gim-crypto = { git = "https://github.com/gimhq/gim-core.git", rev = "569ea70da2b905173e4768866cd9676e19820c9a" }
-gim-identity = { git = "https://github.com/gimhq/gim-core.git", rev = "569ea70da2b905173e4768866cd9676e19820c9a" }
-gim-proto = { git = "https://github.com/gimhq/gim-core.git", rev = "569ea70da2b905173e4768866cd9676e19820c9a" }
-gim-test = { git = "https://github.com/gimhq/gim-core.git", rev = "569ea70da2b905173e4768866cd9676e19820c9a" }
+gim-base = { git = "https://github.com/gimhq/gim-core.git", rev = "db5b7415463e1486a3c694fa6343aa5c9da42ad7" }
+gim-common = { git = "https://github.com/gimhq/gim-core.git", rev = "db5b7415463e1486a3c694fa6343aa5c9da42ad7" }
+gim-crypto = { git = "https://github.com/gimhq/gim-core.git", rev = "db5b7415463e1486a3c694fa6343aa5c9da42ad7" }
+gim-identity = { git = "https://github.com/gimhq/gim-core.git", rev = "db5b7415463e1486a3c694fa6343aa5c9da42ad7" }
+gim-proto = { git = "https://github.com/gimhq/gim-core.git", rev = "db5b7415463e1486a3c694fa6343aa5c9da42ad7" }
+gim-test = { git = "https://github.com/gimhq/gim-core.git", rev = "db5b7415463e1486a3c694fa6343aa5c9da42ad7" }
 
 gim-store-sqlite = { path = "crates/gim-store-sqlite" }
 gim-sdk = { path = "crates/gim-sdk" }

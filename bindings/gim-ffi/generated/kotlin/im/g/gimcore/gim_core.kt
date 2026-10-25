@@ -1539,7 +1539,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if ((lib.uniffi_gim_core_checksum_method_gimclient_create_identity() and 0xFFFF) != 56233) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_gim_core_checksum_method_gimclient_delete_account() and 0xFFFF) != 22928) {
+    if ((lib.uniffi_gim_core_checksum_method_gimclient_delete_account() and 0xFFFF) != 40779) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_gim_core_checksum_method_gimclient_delete_message() and 0xFFFF) != 40750) {
@@ -1608,7 +1608,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if ((lib.uniffi_gim_core_checksum_method_gimclient_remove_member() and 0xFFFF) != 31958) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_gim_core_checksum_method_gimclient_report_user() and 0xFFFF) != 50031) {
+    if ((lib.uniffi_gim_core_checksum_method_gimclient_report_user() and 0xFFFF) != 7723) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_gim_core_checksum_method_gimclient_restore_from_recovery() and 0xFFFF) != 59727) {
@@ -3070,7 +3070,7 @@ public interface GimClientInterface {
     suspend fun `createIdentity`(`displayName`: kotlin.String): kotlin.String
     
     /**
-     * Deletes the account for good: the meta server's data, every chat
+     * Deletes the account for good: the keep server's data, every chat
      * (the user leaves), the account on every hub, then everything on
      * this device as `sign_out` does. Returns the ids of the user's other
      * hubs that could not be reached (their records expire on their own).
@@ -3211,11 +3211,11 @@ public interface GimClientInterface {
     suspend fun `removeMember`(`chatId`: kotlin.String, `userId`: kotlin.String)
     
     /**
-     * Reports a user to the meta server's moderators with the messages
+     * Reports a user to the keep server's moderators with the messages
      * `message_ids` (at most 50, from the local history) in plaintext, and
      * an optional `note` (at most 1000 characters). Returns the report id.
      * Does not block: call `block_user` too if wanted. `InvalidInput`
-     * without a meta server (`ClientConfig::meta_server_url`).
+     * without a keep server (`ClientConfig::keep_server_url`).
      */
     suspend fun `reportUser`(`userId`: kotlin.String, `reason`: ReportReason, `note`: kotlin.String?, `messageIds`: List<kotlin.String>): kotlin.String
     
@@ -3937,7 +3937,7 @@ open class GimClient: Disposable, AutoCloseable, GimClientInterface
 
     
     /**
-     * Deletes the account for good: the meta server's data, every chat
+     * Deletes the account for good: the keep server's data, every chat
      * (the user leaves), the account on every hub, then everything on
      * this device as `sign_out` does. Returns the ids of the user's other
      * hubs that could not be reached (their records expire on their own).
@@ -4546,11 +4546,11 @@ open class GimClient: Disposable, AutoCloseable, GimClientInterface
 
     
     /**
-     * Reports a user to the meta server's moderators with the messages
+     * Reports a user to the keep server's moderators with the messages
      * `message_ids` (at most 50, from the local history) in plaintext, and
      * an optional `note` (at most 1000 characters). Returns the report id.
      * Does not block: call `block_user` too if wanted. `InvalidInput`
-     * without a meta server (`ClientConfig::meta_server_url`).
+     * without a keep server (`ClientConfig::keep_server_url`).
      */
     @Throws(GimException::class)
     @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
@@ -8575,11 +8575,11 @@ data class ClientConfig (
     var `mode`: ClientMode? = null 
     , 
     /**
-     * Base URL of the gim meta server (`http://` or `https://`): the
+     * Base URL of the gim keep server (`http://` or `https://`): the
      * encrypted settings backup and abuse reports. `None`: settings are
      * not backed up and `report_user` fails.
      */
-    var `metaServerUrl`: kotlin.String? = null 
+    var `keepServerUrl`: kotlin.String? = null 
     
 ){
     
@@ -8605,13 +8605,13 @@ public object FfiConverterTypeClientConfig: FfiConverterRustBuffer<ClientConfig>
     override fun allocationSize(value: ClientConfig) = (
             FfiConverterString.allocationSize(value.`serverUrl`) +
             FfiConverterOptionalTypeClientMode.allocationSize(value.`mode`) +
-            FfiConverterOptionalString.allocationSize(value.`metaServerUrl`)
+            FfiConverterOptionalString.allocationSize(value.`keepServerUrl`)
     )
 
     override fun write(value: ClientConfig, buf: ByteBuffer) {
             FfiConverterString.write(value.`serverUrl`, buf)
             FfiConverterOptionalTypeClientMode.write(value.`mode`, buf)
-            FfiConverterOptionalString.write(value.`metaServerUrl`, buf)
+            FfiConverterOptionalString.write(value.`keepServerUrl`, buf)
     }
 }
 
@@ -8904,9 +8904,15 @@ data class MessagePreview (
     var `senderName`: kotlin.String
     , 
     /**
-     * Plain-text rendering ("Photo", "File: report.pdf" for media).
+     * Plain-text rendering in English ("Photo", "File: report.pdf" for
+     * media); apps that localize render `kind` instead.
      */
     var `text`: kotlin.String
+    , 
+    /**
+     * What the message is, for a rendering in the app's language.
+     */
+    var `kind`: PreviewKind
     , 
     var `sentAtMs`: kotlin.ULong
     , 
@@ -8935,6 +8941,7 @@ public object FfiConverterTypeMessagePreview: FfiConverterRustBuffer<MessagePrev
         return MessagePreview(
             FfiConverterString.read(buf),
             FfiConverterString.read(buf),
+            FfiConverterTypePreviewKind.read(buf),
             FfiConverterULong.read(buf),
             FfiConverterBoolean.read(buf),
             FfiConverterOptionalTypeSendState.read(buf),
@@ -8944,6 +8951,7 @@ public object FfiConverterTypeMessagePreview: FfiConverterRustBuffer<MessagePrev
     override fun allocationSize(value: MessagePreview) = (
             FfiConverterString.allocationSize(value.`senderName`) +
             FfiConverterString.allocationSize(value.`text`) +
+            FfiConverterTypePreviewKind.allocationSize(value.`kind`) +
             FfiConverterULong.allocationSize(value.`sentAtMs`) +
             FfiConverterBoolean.allocationSize(value.`isOwn`) +
             FfiConverterOptionalTypeSendState.allocationSize(value.`sendState`)
@@ -8952,6 +8960,7 @@ public object FfiConverterTypeMessagePreview: FfiConverterRustBuffer<MessagePrev
     override fun write(value: MessagePreview, buf: ByteBuffer) {
             FfiConverterString.write(value.`senderName`, buf)
             FfiConverterString.write(value.`text`, buf)
+            FfiConverterTypePreviewKind.write(value.`kind`, buf)
             FfiConverterULong.write(value.`sentAtMs`, buf)
             FfiConverterBoolean.write(value.`isOwn`, buf)
             FfiConverterOptionalTypeSendState.write(value.`sendState`, buf)
@@ -9392,7 +9401,12 @@ data class ReplyPreview (
     , 
     var `senderName`: kotlin.String
     , 
+    /**
+     * As `MessagePreview.text`.
+     */
     var `text`: kotlin.String
+    , 
+    var `kind`: PreviewKind
     
 ){
     
@@ -9412,19 +9426,22 @@ public object FfiConverterTypeReplyPreview: FfiConverterRustBuffer<ReplyPreview>
             FfiConverterString.read(buf),
             FfiConverterString.read(buf),
             FfiConverterString.read(buf),
+            FfiConverterTypePreviewKind.read(buf),
         )
     }
 
     override fun allocationSize(value: ReplyPreview) = (
             FfiConverterString.allocationSize(value.`messageId`) +
             FfiConverterString.allocationSize(value.`senderName`) +
-            FfiConverterString.allocationSize(value.`text`)
+            FfiConverterString.allocationSize(value.`text`) +
+            FfiConverterTypePreviewKind.allocationSize(value.`kind`)
     )
 
     override fun write(value: ReplyPreview, buf: ByteBuffer) {
             FfiConverterString.write(value.`messageId`, buf)
             FfiConverterString.write(value.`senderName`, buf)
             FfiConverterString.write(value.`text`, buf)
+            FfiConverterTypePreviewKind.write(value.`kind`, buf)
     }
 }
 
@@ -10877,6 +10894,121 @@ public object FfiConverterTypeNotificationKind: FfiConverterRustBuffer<Notificat
 
     override fun write(value: NotificationKind, buf: ByteBuffer) {
         buf.putInt(value.ordinal + 1)
+    }
+}
+
+
+
+
+
+/**
+ * What a previewed message is. `Text` covers text messages and media with
+ * a caption (the preview's `text`, user content); the other kinds have a
+ * fixed English `text` an app may replace with its own string.
+ */
+sealed class PreviewKind {
+    
+    object Text : PreviewKind()
+    
+    
+    /**
+     * An image without a caption ("Photo").
+     */
+    object Photo : PreviewKind()
+    
+    
+    /**
+     * Another file without a caption ("File: <name>", or "File").
+     */
+    data class File(
+        val `fileName`: kotlin.String?) : PreviewKind()
+        
+    {
+        
+
+        companion object
+    }
+    
+    /**
+     * A deleted message ("Message deleted").
+     */
+    object Deleted : PreviewKind()
+    
+    
+
+    
+
+    
+    
+
+
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypePreviewKind : FfiConverterRustBuffer<PreviewKind>{
+    override fun read(buf: ByteBuffer): PreviewKind {
+        return when(buf.getInt()) {
+            1 -> PreviewKind.Text
+            2 -> PreviewKind.Photo
+            3 -> PreviewKind.File(
+                FfiConverterOptionalString.read(buf),
+                )
+            4 -> PreviewKind.Deleted
+            else -> throw RuntimeException("invalid enum value, something is very wrong!!")
+        }
+    }
+
+    override fun allocationSize(value: PreviewKind): ULong = when(value) {
+        is PreviewKind.Text -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+            )
+        }
+        is PreviewKind.Photo -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+            )
+        }
+        is PreviewKind.File -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterOptionalString.allocationSize(value.`fileName`)
+            )
+        }
+        is PreviewKind.Deleted -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+            )
+        }
+    }
+
+    override fun write(value: PreviewKind, buf: ByteBuffer) {
+        when(value) {
+            is PreviewKind.Text -> {
+                buf.putInt(1)
+                Unit
+            }
+            is PreviewKind.Photo -> {
+                buf.putInt(2)
+                Unit
+            }
+            is PreviewKind.File -> {
+                buf.putInt(3)
+                FfiConverterOptionalString.write(value.`fileName`, buf)
+                Unit
+            }
+            is PreviewKind.Deleted -> {
+                buf.putInt(4)
+                Unit
+            }
+        }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }
     }
 }
 

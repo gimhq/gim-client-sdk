@@ -1169,7 +1169,7 @@ public protocol GimClientProtocol: AnyObject, Sendable {
     func createIdentity(displayName: String) async throws  -> String
     
     /**
-     * Deletes the account for good: the meta server's data, every chat
+     * Deletes the account for good: the keep server's data, every chat
      * (the user leaves), the account on every hub, then everything on
      * this device as `sign_out` does. Returns the ids of the user's other
      * hubs that could not be reached (their records expire on their own).
@@ -1310,11 +1310,11 @@ public protocol GimClientProtocol: AnyObject, Sendable {
     func removeMember(chatId: String, userId: String) async throws 
     
     /**
-     * Reports a user to the meta server's moderators with the messages
+     * Reports a user to the keep server's moderators with the messages
      * `message_ids` (at most 50, from the local history) in plaintext, and
      * an optional `note` (at most 1000 characters). Returns the report id.
      * Does not block: call `block_user` too if wanted. `InvalidInput`
-     * without a meta server (`ClientConfig::meta_server_url`).
+     * without a keep server (`ClientConfig::keep_server_url`).
      */
     func reportUser(userId: String, reason: ReportReason, note: String?, messageIds: [String]) async throws  -> String
     
@@ -1885,7 +1885,7 @@ open func createIdentity(displayName: String)async throws  -> String  {
 }
     
     /**
-     * Deletes the account for good: the meta server's data, every chat
+     * Deletes the account for good: the keep server's data, every chat
      * (the user leaves), the account on every hub, then everything on
      * this device as `sign_out` does. Returns the ids of the user's other
      * hubs that could not be reached (their records expire on their own).
@@ -2341,11 +2341,11 @@ open func removeMember(chatId: String, userId: String)async throws   {
 }
     
     /**
-     * Reports a user to the meta server's moderators with the messages
+     * Reports a user to the keep server's moderators with the messages
      * `message_ids` (at most 50, from the local history) in plaintext, and
      * an optional `note` (at most 1000 characters). Returns the report id.
      * Does not block: call `block_user` too if wanted. `InvalidInput`
-     * without a meta server (`ClientConfig::meta_server_url`).
+     * without a keep server (`ClientConfig::keep_server_url`).
      */
 open func reportUser(userId: String, reason: ReportReason, note: String?, messageIds: [String])async throws  -> String  {
     return
@@ -5056,11 +5056,11 @@ public struct ClientConfig: Equatable, Hashable {
      */
     public var mode: ClientMode?
     /**
-     * Base URL of the gim meta server (`http://` or `https://`): the
+     * Base URL of the gim keep server (`http://` or `https://`): the
      * encrypted settings backup and abuse reports. `None`: settings are
      * not backed up and `report_user` fails.
      */
-    public var metaServerUrl: String?
+    public var keepServerUrl: String?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -5072,13 +5072,13 @@ public struct ClientConfig: Equatable, Hashable {
          * The process kind; `None` is `ClientMode::App`.
          */mode: ClientMode? = nil, 
         /**
-         * Base URL of the gim meta server (`http://` or `https://`): the
+         * Base URL of the gim keep server (`http://` or `https://`): the
          * encrypted settings backup and abuse reports. `None`: settings are
          * not backed up and `report_user` fails.
-         */metaServerUrl: String? = nil) {
+         */keepServerUrl: String? = nil) {
         self.serverUrl = serverUrl
         self.mode = mode
-        self.metaServerUrl = metaServerUrl
+        self.keepServerUrl = keepServerUrl
     }
 
     
@@ -5099,14 +5099,14 @@ public struct FfiConverterTypeClientConfig: FfiConverterRustBuffer {
             try ClientConfig(
                 serverUrl: FfiConverterString.read(from: &buf), 
                 mode: FfiConverterOptionTypeClientMode.read(from: &buf), 
-                metaServerUrl: FfiConverterOptionString.read(from: &buf)
+                keepServerUrl: FfiConverterOptionString.read(from: &buf)
         )
     }
 
     public static func write(_ value: ClientConfig, into buf: inout [UInt8]) {
         FfiConverterString.write(value.serverUrl, into: &buf)
         FfiConverterOptionTypeClientMode.write(value.mode, into: &buf)
-        FfiConverterOptionString.write(value.metaServerUrl, into: &buf)
+        FfiConverterOptionString.write(value.keepServerUrl, into: &buf)
     }
 }
 
@@ -5486,9 +5486,14 @@ public func FfiConverterTypeMessageItem_lower(_ value: MessageItem) -> RustBuffe
 public struct MessagePreview: Equatable, Hashable {
     public var senderName: String
     /**
-     * Plain-text rendering ("Photo", "File: report.pdf" for media).
+     * Plain-text rendering in English ("Photo", "File: report.pdf" for
+     * media); apps that localize render `kind` instead.
      */
     public var text: String
+    /**
+     * What the message is, for a rendering in the app's language.
+     */
+    public var kind: PreviewKind
     public var sentAtMs: UInt64
     public var isOwn: Bool
     /**
@@ -5501,14 +5506,19 @@ public struct MessagePreview: Equatable, Hashable {
     // declare one manually.
     public init(senderName: String, 
         /**
-         * Plain-text rendering ("Photo", "File: report.pdf" for media).
-         */text: String, sentAtMs: UInt64, isOwn: Bool, 
+         * Plain-text rendering in English ("Photo", "File: report.pdf" for
+         * media); apps that localize render `kind` instead.
+         */text: String, 
+        /**
+         * What the message is, for a rendering in the app's language.
+         */kind: PreviewKind, sentAtMs: UInt64, isOwn: Bool, 
         /**
          * Delivery state of an own message, for the ticks of the row (as
          * `MessageItem.send_state`); `None` for messages from others.
          */sendState: SendState?) {
         self.senderName = senderName
         self.text = text
+        self.kind = kind
         self.sentAtMs = sentAtMs
         self.isOwn = isOwn
         self.sendState = sendState
@@ -5532,6 +5542,7 @@ public struct FfiConverterTypeMessagePreview: FfiConverterRustBuffer {
             try MessagePreview(
                 senderName: FfiConverterString.read(from: &buf), 
                 text: FfiConverterString.read(from: &buf), 
+                kind: FfiConverterTypePreviewKind.read(from: &buf), 
                 sentAtMs: FfiConverterUInt64.read(from: &buf), 
                 isOwn: FfiConverterBool.read(from: &buf), 
                 sendState: FfiConverterOptionTypeSendState.read(from: &buf)
@@ -5541,6 +5552,7 @@ public struct FfiConverterTypeMessagePreview: FfiConverterRustBuffer {
     public static func write(_ value: MessagePreview, into buf: inout [UInt8]) {
         FfiConverterString.write(value.senderName, into: &buf)
         FfiConverterString.write(value.text, into: &buf)
+        FfiConverterTypePreviewKind.write(value.kind, into: &buf)
         FfiConverterUInt64.write(value.sentAtMs, into: &buf)
         FfiConverterBool.write(value.isOwn, into: &buf)
         FfiConverterOptionTypeSendState.write(value.sendState, into: &buf)
@@ -6147,14 +6159,22 @@ public func FfiConverterTypeRecoveryRotation_lower(_ value: RecoveryRotation) ->
 public struct ReplyPreview: Equatable, Hashable {
     public var messageId: String
     public var senderName: String
+    /**
+     * As `MessagePreview.text`.
+     */
     public var text: String
+    public var kind: PreviewKind
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(messageId: String, senderName: String, text: String) {
+    public init(messageId: String, senderName: String, 
+        /**
+         * As `MessagePreview.text`.
+         */text: String, kind: PreviewKind) {
         self.messageId = messageId
         self.senderName = senderName
         self.text = text
+        self.kind = kind
     }
 
     
@@ -6175,7 +6195,8 @@ public struct FfiConverterTypeReplyPreview: FfiConverterRustBuffer {
             try ReplyPreview(
                 messageId: FfiConverterString.read(from: &buf), 
                 senderName: FfiConverterString.read(from: &buf), 
-                text: FfiConverterString.read(from: &buf)
+                text: FfiConverterString.read(from: &buf), 
+                kind: FfiConverterTypePreviewKind.read(from: &buf)
         )
     }
 
@@ -6183,6 +6204,7 @@ public struct FfiConverterTypeReplyPreview: FfiConverterRustBuffer {
         FfiConverterString.write(value.messageId, into: &buf)
         FfiConverterString.write(value.senderName, into: &buf)
         FfiConverterString.write(value.text, into: &buf)
+        FfiConverterTypePreviewKind.write(value.kind, into: &buf)
     }
 }
 
@@ -7565,6 +7587,103 @@ public func FfiConverterTypeNotificationKind_lower(_ value: NotificationKind) ->
 
 
 /**
+ * What a previewed message is. `Text` covers text messages and media with
+ * a caption (the preview's `text`, user content); the other kinds have a
+ * fixed English `text` an app may replace with its own string.
+ */
+
+public enum PreviewKind: Equatable, Hashable {
+    
+    case text
+    /**
+     * An image without a caption ("Photo").
+     */
+    case photo
+    /**
+     * Another file without a caption ("File: <name>", or "File").
+     */
+    case file(fileName: String?
+    )
+    /**
+     * A deleted message ("Message deleted").
+     */
+    case deleted
+
+
+
+
+
+}
+
+#if compiler(>=6)
+extension PreviewKind: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypePreviewKind: FfiConverterRustBuffer {
+    typealias SwiftType = PreviewKind
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> PreviewKind {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .text
+        
+        case 2: return .photo
+        
+        case 3: return .file(fileName: try FfiConverterOptionString.read(from: &buf)
+        )
+        
+        case 4: return .deleted
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: PreviewKind, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .text:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .photo:
+            writeInt(&buf, Int32(2))
+        
+        
+        case let .file(fileName):
+            writeInt(&buf, Int32(3))
+            FfiConverterOptionString.write(fileName, into: &buf)
+            
+        
+        case .deleted:
+            writeInt(&buf, Int32(4))
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypePreviewKind_lift(_ buf: RustBuffer) throws -> PreviewKind {
+    return try FfiConverterTypePreviewKind.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypePreviewKind_lower(_ value: PreviewKind) -> RustBuffer {
+    return FfiConverterTypePreviewKind.lower(value)
+}
+
+
+
+/**
  * Why a user is reported (`report_user`).
  */
 
@@ -8900,7 +9019,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_gim_core_checksum_method_gimclient_create_identity() != 56233) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_gim_core_checksum_method_gimclient_delete_account() != 22928) {
+    if (uniffi_gim_core_checksum_method_gimclient_delete_account() != 40779) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_gim_core_checksum_method_gimclient_delete_message() != 40750) {
@@ -8969,7 +9088,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_gim_core_checksum_method_gimclient_remove_member() != 31958) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_gim_core_checksum_method_gimclient_report_user() != 50031) {
+    if (uniffi_gim_core_checksum_method_gimclient_report_user() != 7723) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_gim_core_checksum_method_gimclient_restore_from_recovery() != 59727) {

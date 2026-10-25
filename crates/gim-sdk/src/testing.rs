@@ -1,5 +1,5 @@
 //! Test doubles: [`FakeTransport`] over gim-test's in-memory hub,
-//! [`FakeMetaServer`] and [`MemorySecretStorage`].
+//! [`FakeKeepServer`] and [`MemorySecretStorage`].
 
 use std::collections::{HashMap, HashSet};
 use std::ops::Range;
@@ -21,7 +21,7 @@ use gim_test::{
     SubmitCommit, Welcome,
 };
 
-use crate::meta_server::{AbuseReport, MetaServer, StoredSlot};
+use crate::keep_server::{AbuseReport, KeepServer, StoredSlot};
 use crate::transport::{
     AccessToken, Challenge, ClaimedKeyPackage, CommitAccepted, EventBatch, GroupInfo,
     HostingEntryGrant, HubEvent, HubIdentity, KeyPackageCount, OutgoingCommit, PostError,
@@ -1009,10 +1009,10 @@ impl SecretStorage for MemorySecretStorage {
     }
 }
 
-/// An in-memory [`MetaServer`]. Cloning shares the state, so several
+/// An in-memory [`KeepServer`]. Cloning shares the state, so several
 /// clients (devices) can use the same fake server.
 #[derive(Debug, Clone, Default)]
-pub struct FakeMetaServer {
+pub struct FakeKeepServer {
     state: Arc<Mutex<FakeAppState>>,
 }
 
@@ -1025,7 +1025,7 @@ struct FakeAppState {
     unreachable: bool,
 }
 
-impl FakeMetaServer {
+impl FakeKeepServer {
     pub fn new() -> Self {
         Self::default()
     }
@@ -1051,14 +1051,14 @@ impl FakeMetaServer {
     fn state(&self) -> TransportResult<MutexGuard<'_, FakeAppState>> {
         let state = lock(&self.state);
         if state.unreachable {
-            return Err(TransportError::Network("meta server unreachable".into()));
+            return Err(TransportError::Network("keep server unreachable".into()));
         }
         Ok(state)
     }
 }
 
 #[async_trait]
-impl MetaServer for FakeMetaServer {
+impl KeepServer for FakeKeepServer {
     async fn slot(&self, root: &RootKey, name: &str) -> TransportResult<Option<StoredSlot>> {
         let key = (root.public().user_id(), name.to_string());
         Ok(self.state()?.slots.get(&key).cloned())

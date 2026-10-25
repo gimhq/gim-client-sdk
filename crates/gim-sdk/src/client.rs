@@ -24,7 +24,7 @@ use tokio::sync::{broadcast, Mutex, Notify};
 use crate::hubs::{http_connector, HubConnector, HubHandle, StoredSession};
 use crate::identity::merge_directory_user;
 use crate::invites::{load_pending_invites, PendingInvites};
-use crate::meta_server::MetaServer;
+use crate::keep_server::KeepServer;
 use crate::push::PushState;
 use crate::routing::{HubTarget, Submission};
 use crate::send::TypingState;
@@ -124,7 +124,7 @@ pub struct ClientBuilder<S> {
     data_dir: Option<PathBuf>,
     sync_settings: SyncSettings,
     hub_connector: Option<HubConnector>,
-    meta_server: Option<Arc<dyn MetaServer>>,
+    keep_server: Option<Arc<dyn KeepServer>>,
     mode: ClientMode,
     store_lock_timeout: Duration,
 }
@@ -142,7 +142,7 @@ impl<S: StateStore + 'static> ClientBuilder<S> {
             data_dir: None,
             sync_settings: SyncSettings::default(),
             hub_connector: None,
-            meta_server: None,
+            keep_server: None,
             mode: ClientMode::App,
             store_lock_timeout: DEFAULT_STORE_LOCK_TIMEOUT,
         }
@@ -274,11 +274,11 @@ impl<S: StateStore + 'static> ClientBuilder<S> {
         self
     }
 
-    /// The gim meta server: keeps the encrypted settings backup and takes
+    /// The gim keep server: keeps the encrypted settings backup and takes
     /// abuse reports. Without one, settings are not backed up and
     /// [`Client::report_user`] fails.
-    pub fn meta_server(mut self, meta_server: Arc<dyn MetaServer>) -> Self {
-        self.meta_server = Some(meta_server);
+    pub fn keep_server(mut self, keep_server: Arc<dyn KeepServer>) -> Self {
+        self.keep_server = Some(keep_server);
         self
     }
 
@@ -348,7 +348,7 @@ impl<S: StateStore + 'static> ClientBuilder<S> {
                 invite_wake: Notify::new(),
                 commit_retry_at: Default::default(),
                 hub_connector: self.hub_connector.unwrap_or_else(http_connector),
-                meta_server: self.meta_server,
+                keep_server: self.keep_server,
                 hubs: Default::default(),
                 hub_lock: Mutex::new(()),
                 home_hub: Default::default(),
@@ -483,7 +483,7 @@ pub(crate) struct Inner<S> {
     /// group's pending commit, after a peer hub failure.
     pub(crate) commit_retry_at: std::sync::Mutex<HashMap<GroupId, u64>>,
     pub(crate) hub_connector: HubConnector,
-    pub(crate) meta_server: Option<Arc<dyn MetaServer>>,
+    pub(crate) keep_server: Option<Arc<dyn KeepServer>>,
     /// Transports and sessions of the hubs other than the home hub.
     pub(crate) hubs: std::sync::Mutex<HashMap<String, HubHandle>>,
     /// Serializes hub registry updates.

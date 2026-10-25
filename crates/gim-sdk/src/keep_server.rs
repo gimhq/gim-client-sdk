@@ -1,4 +1,4 @@
-//! The gim meta server (gim-meta): per-user storage slots sealed with a key
+//! The gim keep server (gim-keep): per-user storage slots sealed with a key
 //! derived from the root key, and abuse reports. Every request is signed
 //! with the user's root key (gim-core `docs/identity.md`, "Root-signed
 //! requests"); the server keeps no account.
@@ -24,11 +24,11 @@ use crate::{Client, ClientError, Result};
 
 /// Slot of the privacy settings backup.
 pub const PRIVACY_SLOT: &str = "privacy";
-/// Most messages one report carries, as on the meta server.
+/// Most messages one report carries, as on the keep server.
 pub const MAX_REPORTED_MESSAGES: usize = 50;
-/// Longest report note in characters, as on the meta server.
+/// Longest report note in characters, as on the keep server.
 pub const MAX_REPORT_NOTE: usize = 1000;
-/// Longest reported message text in characters, as on the meta server;
+/// Longest reported message text in characters, as on the keep server;
 /// longer texts are cut.
 const MAX_REPORTED_TEXT: usize = 4000;
 /// Writes of a slot that lost against a concurrent write, before giving up.
@@ -72,10 +72,10 @@ pub struct AbuseReport {
     pub messages: Vec<ReportedMessage>,
 }
 
-/// The meta server, as the client sees it. Every call signs its request
+/// The keep server, as the client sees it. Every call signs its request
 /// with `root`.
 #[async_trait]
-pub trait MetaServer: Send + Sync {
+pub trait KeepServer: Send + Sync {
     /// The slot `name`; `None` if it was never written.
     async fn slot(&self, root: &RootKey, name: &str) -> TransportResult<Option<StoredSlot>>;
 
@@ -151,14 +151,14 @@ fn reported_text(content: &MessageContent) -> String {
 }
 
 impl<S: StateStore + 'static> Client<S> {
-    fn meta_server(&self) -> Result<&dyn MetaServer> {
+    fn keep_server(&self) -> Result<&dyn KeepServer> {
         self.inner
-            .meta_server
+            .keep_server
             .as_deref()
-            .ok_or_else(|| ClientError::InvalidInput("no meta server configured".into()))
+            .ok_or_else(|| ClientError::InvalidInput("no keep server configured".into()))
     }
 
-    /// Reports `user_id` to the meta server's moderators, with the messages
+    /// Reports `user_id` to the keep server's moderators, with the messages
     /// `message_ids` (from the local history) in plaintext: the server
     /// cannot read chats, so they are what the moderators see. Returns the
     /// report id. Blocking is separate ([`Client::block_user`]).
@@ -186,7 +186,7 @@ impl<S: StateStore + 'static> Client<S> {
                 "the note is longer than {MAX_REPORT_NOTE} characters"
             )));
         }
-        let meta_server = self.meta_server()?;
+        let keep_server = self.keep_server()?;
         let messages = self
             .read(move |store, _| {
                 message_ids
@@ -211,14 +211,14 @@ impl<S: StateStore + 'static> Client<S> {
             note: note.filter(|n| !n.trim().is_empty()),
             messages,
         };
-        Ok(meta_server.report(&self.root_key()?, &report).await?)
+        Ok(keep_server.report(&self.root_key()?, &report).await?)
     }
 
-    /// Writes the privacy settings to the meta server, unless the backup
+    /// Writes the privacy settings to the keep server, unless the backup
     /// there is as new. Failures are only logged: the next change writes
     /// it again.
     pub(crate) async fn back_up_privacy(&self, privacy: &Privacy) {
-        let Some(meta_server) = self.inner.meta_server.as_deref() else {
+        let Some(keep_server) = self.inner.keep_server.as_deref() else {
             return;
         };
         let written = async {
@@ -227,7 +227,7 @@ impl<S: StateStore + 'static> Client<S> {
             let plaintext = serde_json::to_vec(&PrivacyBackup::of(privacy))
                 .map_err(|e| ClientError::Identity(e.to_string()))?;
             for _ in 0..SLOT_WRITE_ATTEMPTS {
-                let stored = meta_server.slot(&root, PRIVACY_SLOT).await?;
+                let stored = keep_server.slot(&root, PRIVACY_SLOT).await?;
                 let version = match &stored {
                     Some(slot) => {
                         let newer = open_backup(&key, slot)
@@ -242,7 +242,7 @@ impl<S: StateStore + 'static> Client<S> {
                 let sealed = key
                     .seal(PRIVACY_SLOT, &plaintext)
                     .map_err(ClientError::identity)?;
-                match meta_server
+                match keep_server
                     .put_slot(&root, PRIVACY_SLOT, version, &sealed)
                     .await
                 {
@@ -260,15 +260,15 @@ impl<S: StateStore + 'static> Client<S> {
         }
     }
 
-    /// Applies the privacy settings backed up on the meta server, if newer
+    /// Applies the privacy settings backed up on the keep server, if newer
     /// than the local ones. Failures are only logged.
     pub(crate) async fn restore_privacy(&self) {
-        let Some(meta_server) = self.inner.meta_server.as_deref() else {
+        let Some(keep_server) = self.inner.keep_server.as_deref() else {
             return;
         };
         let restored = async {
             let root = self.root_key()?;
-            let Some(slot) = meta_server.slot(&root, PRIVACY_SLOT).await? else {
+            let Some(slot) = keep_server.slot(&root, PRIVACY_SLOT).await? else {
                 return Ok(None);
             };
             let backup = open_backup(&StorageKey::derive(&root), &slot)?.privacy()?;

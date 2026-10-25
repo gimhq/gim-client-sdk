@@ -1,5 +1,5 @@
-//! The meta server: the privacy settings backup, reports and account
-//! deletion, against one fake hub and a fake meta server.
+//! The keep server: the privacy settings backup, reports and account
+//! deletion, against one fake hub and a fake keep server.
 
 use std::path::Path;
 use std::sync::Arc;
@@ -11,9 +11,9 @@ use gim_identity::recovery::RecoveryCode;
 use gim_identity::storage::StorageKey;
 use gim_identity::RootKey;
 use gim_proto::envelope::Content;
-use gim_sdk::testing::{FakeMetaServer, FakeTransport, MemorySecretStorage};
+use gim_sdk::testing::{FakeKeepServer, FakeTransport, MemorySecretStorage};
 use gim_sdk::{
-    Client, ClientBuilder, ClientError, MetaServer, ReportReason, SecretStorage, TransportError,
+    Client, ClientBuilder, ClientError, KeepServer, ReportReason, SecretStorage, TransportError,
     PRIVACY_SLOT, ROOT_KEY_SECRET_KEY,
 };
 use tempfile::TempDir;
@@ -26,7 +26,7 @@ struct Device {
 }
 
 impl Device {
-    fn new(transport: &FakeTransport, app: Option<&FakeMetaServer>) -> Self {
+    fn new(transport: &FakeTransport, app: Option<&FakeKeepServer>) -> Self {
         let store = Arc::new(MemoryStore::new());
         let secrets = Arc::new(MemorySecretStorage::new());
         let data_dir = tempfile::tempdir().unwrap();
@@ -41,7 +41,7 @@ impl Device {
 
     async fn register(
         transport: &FakeTransport,
-        app: Option<&FakeMetaServer>,
+        app: Option<&FakeKeepServer>,
         handle: &str,
     ) -> (Self, RecoveryCode) {
         let device = Self::new(transport, app);
@@ -76,7 +76,7 @@ impl Device {
 
 fn build(
     transport: &FakeTransport,
-    app: Option<&FakeMetaServer>,
+    app: Option<&FakeKeepServer>,
     store: &Arc<MemoryStore>,
     secrets: &Arc<MemorySecretStorage>,
     data_dir: &Path,
@@ -88,7 +88,7 @@ fn build(
     )
     .data_dir(data_dir);
     match app {
-        Some(app) => builder.meta_server(Arc::new(app.clone())),
+        Some(app) => builder.keep_server(Arc::new(app.clone())),
         None => builder,
     }
     .build()
@@ -98,13 +98,13 @@ fn build(
 #[tokio::test]
 async fn blocks_and_privacy_settings_survive_the_loss_of_every_device() {
     let transport = FakeTransport::new();
-    let app = FakeMetaServer::new();
+    let app = FakeKeepServer::new();
     let (alice, code) = Device::register(&transport, Some(&app), "alice").await;
     let (bob, _) = Device::register(&transport, Some(&app), "bob").await;
 
     alice.client.block_user(&bob.user_id()).await.unwrap();
     alice.client.set_read_receipts(false).await.unwrap();
-    // Sealed: the meta server sees neither the setting nor bob.
+    // Sealed: the keep server sees neither the setting nor bob.
     let slot = app.slot_of(&alice.user_id(), PRIVACY_SLOT).unwrap();
     assert_eq!(slot.version, 2);
     assert!(!String::from_utf8_lossy(&slot.data).contains(bob.user_id().as_str()));
@@ -133,9 +133,9 @@ async fn blocks_and_privacy_settings_survive_the_loss_of_every_device() {
 }
 
 #[tokio::test]
-async fn an_unreachable_meta_server_does_not_fail_a_setting() {
+async fn an_unreachable_keep_server_does_not_fail_a_setting() {
     let transport = FakeTransport::new();
-    let app = FakeMetaServer::new();
+    let app = FakeKeepServer::new();
     let (alice, _) = Device::register(&transport, Some(&app), "alice").await;
     app.set_unreachable(true);
     alice.client.set_typing_indicators(false).await.unwrap();
@@ -150,7 +150,7 @@ async fn an_unreachable_meta_server_does_not_fail_a_setting() {
 #[tokio::test]
 async fn an_older_backup_is_not_written_over_a_newer_one() {
     let transport = FakeTransport::new();
-    let app = FakeMetaServer::new();
+    let app = FakeKeepServer::new();
     let (alice, _) = Device::register(&transport, Some(&app), "alice").await;
     let root = alice.root_key();
     let key = StorageKey::derive(&root);
@@ -171,7 +171,7 @@ async fn an_older_backup_is_not_written_over_a_newer_one() {
 #[tokio::test]
 async fn a_report_carries_the_chosen_messages() {
     let transport = FakeTransport::new();
-    let app = FakeMetaServer::new();
+    let app = FakeKeepServer::new();
     let (alice, _) = Device::register(&transport, Some(&app), "alice").await;
     let (bob, _) = Device::register(&transport, None, "bob").await;
     let g = bob
@@ -208,7 +208,7 @@ async fn a_report_carries_the_chosen_messages() {
     assert_eq!(report.messages[0].text, "buy coins");
     assert_eq!(report.messages[0].sender_user_id, bob.user_id().as_str());
 
-    // Not oneself; not without a meta server.
+    // Not oneself; not without a keep server.
     assert!(matches!(
         alice
             .client
@@ -225,9 +225,9 @@ async fn a_report_carries_the_chosen_messages() {
 }
 
 #[tokio::test]
-async fn a_deleted_account_is_gone_from_the_hub_and_the_meta_server() {
+async fn a_deleted_account_is_gone_from_the_hub_and_the_keep_server() {
     let transport = FakeTransport::new();
-    let app = FakeMetaServer::new();
+    let app = FakeKeepServer::new();
     let (alice, code) = Device::register(&transport, Some(&app), "alice").await;
     let (bob, _) = Device::register(&transport, None, "bob").await;
     let g = bob
@@ -239,7 +239,7 @@ async fn a_deleted_account_is_gone_from_the_hub_and_the_meta_server() {
     alice.client.block_user(&bob.user_id()).await.unwrap();
     assert!(app.slot_of(&alice.user_id(), PRIVACY_SLOT).is_some());
 
-    // The meta server must be reached first: nothing is deleted without it.
+    // The keep server must be reached first: nothing is deleted without it.
     app.set_unreachable(true);
     assert!(matches!(
         alice.client.delete_account().await,

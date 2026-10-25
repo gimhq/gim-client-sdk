@@ -25,12 +25,12 @@ Adding account and safety features to the SDK
 - 2026-10-23: step 1 done locally: `Client::rotate_recovery_code` and FFI
   `rotateRecoveryCode()` with 6 new tests; fmt, clippy, 392 tests and
   bindings regeneration pass. Plan revised: client-side blocking, no hub
-  state except account deletion, a separate encrypted meta server.
+  state except account deletion, a separate encrypted keep server.
 - 2026-10-23: Phase A done: privacy switches, blocking, mute/pin/archive
   and profile photos (core `dd9ac44`, SQLite migration 0008, gim-ui chat
-  list fields, FFI, `docs/API.md`). Phase B (meta server, reports, account
+  list fields, FFI, `docs/API.md`). Phase B (keep server, reports, account
   deletion) next.
 - 2026-10-23: Phase B code done (core `259c8cf`, hub `fa000fb`, new
-  gimhq/gim-meta, SDK meta-server client, privacy backup, `report_user`,
-  `delete_account`). Open: deploying gim-meta to Cloudflare Workers, which
+  gimhq/gim-keep, SDK keep-server client, privacy backup, `report_user`,
+  `delete_account`). Open: deploying gim-keep to Cloudflare Workers, which
   needs credentials.

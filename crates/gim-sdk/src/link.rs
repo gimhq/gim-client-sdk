@@ -306,7 +306,7 @@ impl<S: StateStore + 'static> Client<S> {
     ///
     /// Chats are not rejoined automatically: their members (or another own
     /// device) have to add this device again. The privacy settings (blocked
-    /// users included) come back from the meta server, if one is configured
+    /// users included) come back from the keep server, if one is configured
     /// and holds a backup.
     pub async fn restore_from_recovery(
         &self,

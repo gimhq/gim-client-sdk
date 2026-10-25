@@ -7,7 +7,7 @@
 
 mod convert;
 mod error;
-mod meta_server;
+mod keep_server;
 
 use std::ops::Range;
 use std::path::Path;
@@ -34,7 +34,7 @@ use crate::transport::{
     TransportResult, UserRecord,
 };
 
-pub use meta_server::HttpMetaServer;
+pub use keep_server::HttpKeepServer;
 pub use reqwest::Url;
 
 /// Longest long-poll `wait` the hub accepts.

@@ -91,7 +91,7 @@ mod tests {
         ClientConfig {
             server_url: url.to_string(),
             mode: None,
-            meta_server_url: None,
+            keep_server_url: None,
         }
     }
 
