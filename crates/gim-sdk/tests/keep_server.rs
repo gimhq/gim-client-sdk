@@ -13,8 +13,8 @@ use gim_identity::RootKey;
 use gim_proto::envelope::Content;
 use gim_sdk::testing::{FakeKeepServer, FakeTransport, MemorySecretStorage};
 use gim_sdk::{
-    Client, ClientBuilder, ClientError, KeepServer, ReportReason, SecretStorage, TransportError,
-    PRIVACY_SLOT, ROOT_KEY_SECRET_KEY,
+    Client, ClientBuilder, ClientError, KeepServer, ReportReason, SecretStorage, PRIVACY_SLOT,
+    ROOT_KEY_SECRET_KEY,
 };
 use tempfile::TempDir;
 
@@ -239,15 +239,6 @@ async fn a_deleted_account_is_gone_from_the_hub_and_the_keep_server() {
     alice.client.block_user(&bob.user_id()).await.unwrap();
     assert!(app.slot_of(&alice.user_id(), PRIVACY_SLOT).is_some());
 
-    // The keep server must be reached first: nothing is deleted without it.
-    app.set_unreachable(true);
-    assert!(matches!(
-        alice.client.delete_account().await,
-        Err(ClientError::Transport(TransportError::Network(_)))
-    ));
-    assert!(!transport.is_deleted(&alice.user_id()));
-    app.set_unreachable(false);
-
     let unreached = alice.client.delete_account().await.unwrap();
     assert!(unreached.is_empty());
     assert!(transport.is_deleted(&alice.user_id()));
@@ -267,4 +258,26 @@ async fn a_deleted_account_is_gone_from_the_hub_and_the_keep_server() {
     ));
     // Again: the hub no longer knows the user, which is not an error.
     assert!(alice.client.delete_account().await.unwrap().is_empty());
+}
+
+/// The keep server never blocks account deletion: when it cannot delete
+/// the user's data, the hubs still delete the account.
+#[tokio::test]
+async fn an_unreachable_keep_server_does_not_block_account_deletion() {
+    let transport = FakeTransport::new();
+    let app = FakeKeepServer::new();
+    let (alice, _) = Device::register(&transport, Some(&app), "alice").await;
+    let (bob, _) = Device::register(&transport, None, "bob").await;
+    bob.client.block_user(&alice.user_id()).await.unwrap();
+    alice.client.block_user(&bob.user_id()).await.unwrap();
+    assert!(app.slot_of(&alice.user_id(), PRIVACY_SLOT).is_some());
+
+    app.set_unreachable(true);
+    let unreached = alice.client.delete_account().await.unwrap();
+    assert!(unreached.is_empty());
+    assert!(transport.is_deleted(&alice.user_id()));
+    // Left behind on the keep server: sealed with a key only the deleted
+    // account had.
+    app.set_unreachable(false);
+    assert!(app.slot_of(&alice.user_id(), PRIVACY_SLOT).is_some());
 }

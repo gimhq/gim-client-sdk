@@ -11,15 +11,17 @@ impl<S: StateStore + 'static> Client<S> {
     /// Deletes the user's account for good, in this order:
     ///
     /// 1. the keep server's data of the user (the encrypted settings
-    ///    backup), if a keep server is configured;
+    ///    backup), if a keep server is configured; best effort: a keep
+    ///    server that cannot be reached or fails is logged and skipped,
+    ///    so it never blocks the deletion (what it keeps is sealed with a
+    ///    key only this account had);
     /// 2. the user leaves every chat (best effort: the members see them
     ///    leave);
     /// 3. the home hub deletes the user, their devices, handles, recovery
     ///    backup and inbox (`DELETE /v2/users/{user_id}`, root-signed);
     /// 4. the other listed hubs do the same, best effort.
     ///
-    /// A failure in step 1 or 3 fails the call; calling it again carries
-    /// on. Returns the ids of the other hubs that could not be reached:
+    /// A failure in step 3 fails the call; calling it again carries on. Returns the ids of the other hubs that could not be reached:
     /// their records expire on their own. Local data stays: sign out
     /// afterwards to delete it (gim-ffi `delete_account` does both).
     /// Needs the root key (every device of a user has it).
@@ -32,7 +34,9 @@ impl<S: StateStore + 'static> Client<S> {
         }
         let root = self.root_key()?;
         if let Some(keep_server) = self.inner.keep_server.as_deref() {
-            keep_server.delete_user_data(&root).await?;
+            if let Err(err) = keep_server.delete_user_data(&root).await {
+                tracing::warn!(error = %err, "cannot delete the data on the keep server; deleting the account anyway");
+            }
         }
         let chats = self.read(|store, _| Ok(store.chats()?)).await?;
         for chat in chats.iter().filter(|c| c.membership != Membership::Left) {

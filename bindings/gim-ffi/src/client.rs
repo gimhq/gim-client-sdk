@@ -882,7 +882,8 @@ impl GimClient {
             .await?)
     }
 
-    /// Deletes the account for good: the keep server's data, every chat
+    /// Deletes the account for good: the keep server's data (best effort,
+    /// never blocking), every chat
     /// (the user leaves), the account on every hub, then everything on
     /// this device as `sign_out` does. Returns the ids of the user's other
     /// hubs that could not be reached (their records expire on their own).

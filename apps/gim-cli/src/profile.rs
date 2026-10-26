@@ -1,6 +1,6 @@
 //! Profile directory: `gim.sqlite3` (SQLCipher store), `secrets.json`
-//! (session and database key), `config.json` (server URL), `tmp/` (media
-//! temp files).
+//! (session and database key), `config.json` (server and keep server URLs),
+//! `tmp/` (media temp files).
 
 use std::fs;
 use std::io::ErrorKind as IoErrorKind;
@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 use gim_base::BaseError;
 use gim_sdk::http::Url;
-use gim_sdk::{Client, ClientBuilder, HttpTransport, Session};
+use gim_sdk::{Client, ClientBuilder, HttpKeepServer, HttpTransport, Session};
 use gim_store_sqlite::{DbKey, SqliteStore};
 use serde::{Deserialize, Serialize};
 
@@ -19,15 +19,73 @@ use crate::secrets::{FileSecretStorage, SECRETS_FILE};
 
 pub const CONFIG_FILE: &str = "config.json";
 
+/// The built-in server (hub), used when neither `--server`, `GIM_SERVER`
+/// nor the profile names one.
+pub const DEFAULT_SERVER: &str = "https://hub.g.im";
+/// The built-in keep server (encrypted settings backup, reports), used
+/// unless the profile names another one or turned it off.
+pub const DEFAULT_KEEP_SERVER: &str = "https://keep.g.im";
+/// `--keep-server` value that goes back to [`DEFAULT_KEEP_SERVER`].
+pub const KEEP_SERVER_DEFAULT_ARG: &str = "default";
+
 pub type GimClient = Client<SqliteStore>;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Config {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub server: Option<String>,
+    /// Another keep server than [`DEFAULT_KEEP_SERVER`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub keep_server: Option<String>,
+    /// The keep server is off.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub no_keep: bool,
+}
+
+/// The command line's keep server choice (`--keep-server`, `GIM_KEEP_SERVER`
+/// or `--no-keep`), saved to the profile.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum KeepArg {
+    Url(String),
+    /// Back to [`DEFAULT_KEEP_SERVER`].
+    Default,
+    Off,
+}
+
+impl KeepArg {
+    /// `--no-keep` wins over a URL (which may come from the environment).
+    pub fn from_args(keep_server: Option<&str>, no_keep: bool) -> Option<Self> {
+        if no_keep {
+            return Some(Self::Off);
+        }
+        keep_server.map(|url| match url {
+            KEEP_SERVER_DEFAULT_ARG => Self::Default,
+            url => Self::Url(url.to_string()),
+        })
+    }
 }
 
 impl Config {
+    /// The keep server to use; `None` when it is off.
+    pub fn keep_server(&self) -> Option<String> {
+        if self.no_keep {
+            return None;
+        }
+        Some(
+            self.keep_server
+                .clone()
+                .unwrap_or_else(|| DEFAULT_KEEP_SERVER.to_string()),
+        )
+    }
+
+    pub fn set_keep(&mut self, keep: &KeepArg) {
+        (self.keep_server, self.no_keep) = match keep {
+            KeepArg::Url(url) => (Some(url.clone()), false),
+            KeepArg::Default => (None, false),
+            KeepArg::Off => (None, true),
+        };
+    }
+
     pub fn load(dir: &Path) -> Result<Self> {
         let path = dir.join(CONFIG_FILE);
         match fs::read(&path) {
@@ -78,19 +136,41 @@ impl Profile {
         Ok(Self { dir, config })
     }
 
-    /// `--server`, else the configured server.
-    pub fn server(&self, server: Option<&str>) -> Option<String> {
+    /// `--server`, else the configured server, else [`DEFAULT_SERVER`].
+    pub fn server(&self, server: Option<&str>) -> String {
         server
             .map(str::to_string)
             .or_else(|| self.config.server.clone())
+            .unwrap_or_else(|| DEFAULT_SERVER.to_string())
     }
 
-    /// A client without a session.
+    /// Saves the command line's keep server choice, if any.
+    pub fn apply_keep(&mut self, keep: Option<&KeepArg>) -> Result<()> {
+        if let Some(keep) = keep {
+            self.config.set_keep(keep);
+            self.config.save(&self.dir)?;
+        }
+        Ok(())
+    }
+
+    /// A client without a session, with the profile's keep server.
     pub fn client(&self, server: &str) -> Result<GimClient> {
         let url = Url::parse(server)
             .map_err(|e| CliError::usage(format!("invalid server URL {server:?}: {e}")))?;
         let transport =
             HttpTransport::new(url).map_err(|e| CliError::new(ErrorKind::Server, e.to_string()))?;
+        let keep_server = match self.config.keep_server() {
+            Some(keep) => {
+                let url = Url::parse(&keep).map_err(|e| {
+                    CliError::usage(format!("invalid keep server URL {keep:?}: {e}"))
+                })?;
+                Some(
+                    HttpKeepServer::new(url)
+                        .map_err(|e| CliError::new(ErrorKind::Server, e.to_string()))?,
+                )
+            }
+            None => None,
+        };
         let secrets = FileSecretStorage::new(self.dir.join(SECRETS_FILE));
         let mut reset = false;
         let builder =
@@ -108,7 +188,12 @@ impl Profile {
                 self.dir.display()
             );
         }
-        Ok(builder.data_dir(&self.dir).build()?)
+        let builder = builder.data_dir(&self.dir);
+        let builder = match keep_server {
+            Some(keep_server) => builder.keep_server(Arc::new(keep_server)),
+            None => builder,
+        };
+        Ok(builder.build()?)
     }
 }
 
@@ -117,14 +202,15 @@ pub struct Ctx {
     pub client: GimClient,
     pub session: Session,
     pub server: String,
+    /// `None` when the keep server is off.
+    pub keep_server: Option<String>,
 }
 
 impl Ctx {
-    pub async fn connect(dir: &Path, server: Option<&str>) -> Result<Self> {
-        let profile = Profile::open(dir)?;
-        let server = profile
-            .server(server)
-            .ok_or_else(CliError::not_registered)?;
+    pub async fn connect(dir: &Path, server: Option<&str>, keep: Option<&KeepArg>) -> Result<Self> {
+        let mut profile = Profile::open(dir)?;
+        profile.apply_keep(keep)?;
+        let server = profile.server(server);
         let client = profile.client(&server)?;
         if !client.restore_session().await? {
             return Err(CliError::not_registered());
@@ -143,6 +229,7 @@ impl Ctx {
             client,
             session,
             server,
+            keep_server: profile.config.keep_server(),
         })
     }
 
@@ -161,6 +248,7 @@ mod tests {
         assert_eq!(Config::load(dir.path()).unwrap(), Config::default());
         let config = Config {
             server: Some("https://gim.example.eu".into()),
+            ..Config::default()
         };
         config.save(dir.path()).unwrap();
         assert_eq!(Config::load(dir.path()).unwrap(), config);
@@ -181,17 +269,86 @@ mod tests {
         let profile = Profile::create(&dir).unwrap();
         let mode = fs::metadata(&dir).unwrap().permissions().mode() & 0o777;
         assert_eq!(mode, 0o700);
-        assert_eq!(profile.server(None), None);
+        assert_eq!(profile.server(None), DEFAULT_SERVER);
+        assert_eq!(profile.server(Some("http://b")), "http://b");
         Config {
             server: Some("http://a".into()),
+            ..Config::default()
         }
         .save(&dir)
         .unwrap();
         let profile = Profile::open(&dir).unwrap();
-        assert_eq!(profile.server(None).as_deref(), Some("http://a"));
+        assert_eq!(profile.server(None), "http://a");
+        assert_eq!(profile.server(Some("http://b")), "http://b");
+    }
+
+    #[test]
+    fn keep_server_defaults_is_saved_turned_off_and_reset() {
+        let root = tempfile::tempdir().unwrap();
+        let dir = root.path().join("alice");
+        let mut profile = Profile::create(&dir).unwrap();
         assert_eq!(
-            profile.server(Some("http://b")).as_deref(),
-            Some("http://b")
+            profile.config.keep_server().as_deref(),
+            Some(DEFAULT_KEEP_SERVER)
+        );
+        // No choice on the command line: nothing is written.
+        profile.apply_keep(None).unwrap();
+        assert!(!dir.join(CONFIG_FILE).exists());
+
+        let other = KeepArg::Url("https://keep.example.eu".into());
+        profile.apply_keep(Some(&other)).unwrap();
+        let profile = Profile::open(&dir).unwrap();
+        assert_eq!(
+            profile.config.keep_server().as_deref(),
+            Some("https://keep.example.eu")
+        );
+
+        let mut profile = profile;
+        profile.apply_keep(Some(&KeepArg::Off)).unwrap();
+        let mut profile = Profile::open(&dir).unwrap();
+        assert_eq!(profile.config.keep_server(), None);
+        let raw: serde_json::Value =
+            serde_json::from_slice(&fs::read(dir.join(CONFIG_FILE)).unwrap()).unwrap();
+        assert_eq!(raw, serde_json::json!({"no_keep": true}));
+        drop(profile.client("http://127.0.0.1:1").unwrap());
+
+        profile.apply_keep(Some(&KeepArg::Default)).unwrap();
+        let profile = Profile::open(&dir).unwrap();
+        assert_eq!(profile.config, Config::default());
+        assert_eq!(
+            profile.config.keep_server().as_deref(),
+            Some(DEFAULT_KEEP_SERVER)
+        );
+    }
+
+    #[test]
+    fn keep_arg_no_keep_wins_and_default_resets() {
+        assert_eq!(KeepArg::from_args(None, false), None);
+        assert_eq!(
+            KeepArg::from_args(Some("https://k"), false),
+            Some(KeepArg::Url("https://k".into()))
+        );
+        assert_eq!(
+            KeepArg::from_args(Some("default"), false),
+            Some(KeepArg::Default)
+        );
+        assert_eq!(
+            KeepArg::from_args(Some("https://k"), true),
+            Some(KeepArg::Off)
+        );
+        assert_eq!(KeepArg::from_args(None, true), Some(KeepArg::Off));
+    }
+
+    #[test]
+    fn an_invalid_keep_server_url_is_a_usage_error() {
+        let root = tempfile::tempdir().unwrap();
+        let mut profile = Profile::create(&root.path().join("alice")).unwrap();
+        profile
+            .apply_keep(Some(&KeepArg::Url("not a url".into())))
+            .unwrap();
+        assert_eq!(
+            profile.client("http://127.0.0.1:1").err().map(|e| e.kind),
+            Some(ErrorKind::Usage)
         );
     }
 

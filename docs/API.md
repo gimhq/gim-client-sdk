@@ -393,15 +393,16 @@ request is signed with the user's root key. Without it the app works, but nothin
 `deleteAccount()` deletes the account for good. Ask for an explicit confirmation first (and say
 that it cannot be undone; the recovery code stops working). In order:
 
-1. the user's data on the keep server, if one is configured;
+1. the user's data on the keep server, if one is configured; best effort: a keep server that is
+   off, unreachable or failing is logged and skipped, it never blocks the deletion;
 2. the user leaves every chat (best effort; the members see them leave);
 3. the home hub deletes the user, their devices, handles, recovery backup and pending events
    (`DELETE /v2/users/{userId}`, root-signed);
 4. the user's other hubs do the same, best effort;
 5. this device is wiped like `signOut()` (without the push unregistration: the hubs dropped it).
 
-It returns the other hubs that could not be reached (their records expire on their own). If step 1
-or 3 fails, nothing local is deleted and the call can be repeated; a hub that no longer knows the
+It returns the other hubs that could not be reached (their records expire on their own). If step 3
+fails, nothing local is deleted and the call can be repeated; a hub that no longer knows the
 user counts as done. Afterwards create a new client, as after `signOut()`. An app extension cannot
 call it.
 

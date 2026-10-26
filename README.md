@@ -148,9 +148,14 @@ cargo build -p gim-cli          # -> target/debug/gim
 
 Every command needs a profile directory: `--profile DIR` (or `GIM_PROFILE`).
 It holds the SQLite store (`gim.sqlite3`), the session (`secrets.json`, mode
-0600; refused if group/other bits are set) and `config.json` (server URL).
-`register` creates the profile and needs `--server URL` (or `GIM_SERVER`); later
-commands read the URL from the profile. One profile is one device: never use it
+0600; refused if group/other bits are set) and `config.json` (server and keep
+server URLs). `register` (and `restore`, `link`) creates the profile on
+`--server URL` (or `GIM_SERVER`; default the built-in `https://hub.g.im`); later
+commands read the URL from the profile. The keep server (encrypted backup of
+the privacy settings, reports) is the built-in `https://keep.g.im` unless
+`--keep-server URL` (or `GIM_KEEP_SERVER`) names another one or `--no-keep` turns
+it off; either is saved to the profile whenever given, and `--keep-server default`
+goes back to the built-in one. Everything but `report` works without it. One profile is one device: never use it
 from two `gim` processes at once (concurrent syncs or sends corrupt its MLS
 state); use one profile per simulated user.
 

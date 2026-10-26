@@ -1539,7 +1539,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if ((lib.uniffi_gim_core_checksum_method_gimclient_create_identity() and 0xFFFF) != 56233) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_gim_core_checksum_method_gimclient_delete_account() and 0xFFFF) != 40779) {
+    if ((lib.uniffi_gim_core_checksum_method_gimclient_delete_account() and 0xFFFF) != 29130) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_gim_core_checksum_method_gimclient_delete_message() and 0xFFFF) != 40750) {
@@ -3070,7 +3070,8 @@ public interface GimClientInterface {
     suspend fun `createIdentity`(`displayName`: kotlin.String): kotlin.String
     
     /**
-     * Deletes the account for good: the keep server's data, every chat
+     * Deletes the account for good: the keep server's data (best effort,
+     * never blocking), every chat
      * (the user leaves), the account on every hub, then everything on
      * this device as `sign_out` does. Returns the ids of the user's other
      * hubs that could not be reached (their records expire on their own).
@@ -3937,7 +3938,8 @@ open class GimClient: Disposable, AutoCloseable, GimClientInterface
 
     
     /**
-     * Deletes the account for good: the keep server's data, every chat
+     * Deletes the account for good: the keep server's data (best effort,
+     * never blocking), every chat
      * (the user leaves), the account on every hub, then everything on
      * this device as `sign_out` does. Returns the ids of the user's other
      * hubs that could not be reached (their records expire on their own).

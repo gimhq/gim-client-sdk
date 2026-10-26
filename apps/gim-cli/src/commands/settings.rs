@@ -1,5 +1,5 @@
 //! `profile`, `devices`, `servers`, `recovery-key`, `privacy`, `block`,
-//! `unblock` and the chat settings (`chats mute|pin|archive`).
+//! `unblock`, `report` and the chat settings (`chats mute|pin|archive`).
 
 use std::io::BufRead;
 use std::time::{Duration, Instant};
@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 use gim_base::model::HubState;
 use gim_base::StateReader;
 use gim_common::DeviceId;
-use gim_sdk::{ClientError, MUTED_FOREVER};
+use gim_sdk::{ClientError, ReportReason, MUTED_FOREVER};
 use serde_json::json;
 
 use crate::commands::account::recovery_kit;
@@ -253,6 +253,34 @@ pub async fn block(ctx: &Ctx, user: &str, blocked: bool) -> Result<Output> {
     Ok(Output::new(
         &json!({ "user_id": user_id.to_string() }),
         human,
+    ))
+}
+
+/// Reports `user` with the messages `message_ids` to the keep server.
+pub async fn report(
+    ctx: &Ctx,
+    user: &str,
+    reason: ReportReason,
+    note: Option<String>,
+    message_ids: &[String],
+) -> Result<Output> {
+    if ctx.keep_server.is_none() {
+        return Err(CliError::usage(
+            "reporting needs a keep server, which is off for this profile (--keep-server)",
+        ));
+    }
+    let user_id = ctx.resolve_user(user).await?;
+    let messages = message_ids
+        .iter()
+        .map(|id| Ok(ctx.resolve_message(id)?.message_id))
+        .collect::<Result<Vec<_>>>()?;
+    let report_id = ctx
+        .client
+        .report_user(&user_id, reason, note, messages)
+        .await?;
+    Ok(Output::new(
+        &json!({ "report_id": report_id }),
+        format!("{user} is reported. The moderators will look into it."),
     ))
 }
 

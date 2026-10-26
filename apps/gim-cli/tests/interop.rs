@@ -92,7 +92,7 @@ impl Gim {
             dir: TempDir::new().unwrap(),
         };
         let handle = gim.handle.clone();
-        let out = gim.ok(&["--server", server, "register", &handle, name]);
+        let out = gim.ok(&["--server", server, "--no-keep", "register", &handle, name]);
         assert_eq!(out["handle"], handle.as_str(), "{out}");
         assert!(
             out["recovery_code"].as_str().is_some_and(|c| !c.is_empty()),
@@ -127,7 +127,8 @@ impl Gim {
             .arg(self.profile())
             .args(args)
             .env_remove("GIM_PROFILE")
-            .env_remove("GIM_SERVER");
+            .env_remove("GIM_SERVER")
+            .env_remove("GIM_KEEP_SERVER");
         cmd
     }
 
@@ -223,6 +224,8 @@ fn cli_to_cli_interop() {
     let me = alice.ok(&["whoami"]);
     assert_eq!(me["handle"], alice.handle.as_str(), "{me}");
     assert_eq!(me["server"], server.as_str(), "{me}");
+    // Registered with --no-keep, which the profile kept.
+    assert!(me["keep_server"].is_null(), "{me}");
     let found = alice.ok(&["users", "search", &bob.handle]);
     assert_eq!(found["users"][0]["handle"], bob.handle.as_str(), "{found}");
 
@@ -554,6 +557,7 @@ fn account_and_settings(server: &str, alice: &Gim, bob: &Gim, carol: &Gim) {
     let out = restored.ok(&[
         "--server",
         server,
+        "--no-keep",
         "restore",
         "--kit-file",
         path_str(&kit_file),
@@ -565,7 +569,7 @@ fn account_and_settings(server: &str, alice: &Gim, bob: &Gim, carol: &Gim) {
     // A device linked from alice's.
     let linked = Gim::empty();
     let mut child = linked
-        .command(&["--server", server, "link", "--yes"])
+        .command(&["--server", server, "--no-keep", "link", "--yes"])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()

@@ -27,7 +27,7 @@ use clap::{Parser, Subcommand, ValueEnum};
 use crate::commands::{account, chats, listen, media, messages, settings, wait_for};
 use crate::error::{exit_codes_help, CliError, Result, EXIT_OK, EXIT_USAGE};
 use crate::output::{print_error, Output};
-use crate::profile::Ctx;
+use crate::profile::{Ctx, KeepArg};
 
 #[derive(Debug, Parser)]
 #[command(
@@ -40,10 +40,19 @@ struct Cli {
     /// Profile directory (store, session, config). Required.
     #[arg(long, env = "GIM_PROFILE", global = true, value_name = "DIR")]
     profile: Option<PathBuf>,
-    /// Server base URL; saved to the profile by `register`, read from it
-    /// otherwise.
+    /// Server base URL; saved to the profile by `register`, `restore` and
+    /// `link`, read from it otherwise. Default: https://hub.g.im.
     #[arg(long, env = "GIM_SERVER", global = true, value_name = "URL")]
     server: Option<String>,
+    /// Keep server base URL (encrypted backup of the privacy settings,
+    /// reports). Saved to the profile whenever given; "default" goes back
+    /// to the built-in https://keep.g.im, which is used when none is set.
+    #[arg(long, env = "GIM_KEEP_SERVER", global = true, value_name = "URL")]
+    keep_server: Option<String>,
+    /// Turn the keep server off for this profile (saved; wins over
+    /// --keep-server). Everything else works without it; `report` does not.
+    #[arg(long, global = true)]
+    no_keep: bool,
     /// Print exactly one JSON object on stdout (errors included).
     #[arg(long, global = true)]
     json: bool,
@@ -68,7 +77,8 @@ const TYPING_ABOUT: &str = "Typing indicators expire on their own; --stop only t
 
 #[derive(Debug, Subcommand)]
 enum Command {
-    /// Create an account on --server with this device and a username;
+    /// Create an account on --server (default https://hub.g.im) with this
+    /// device and a username;
     /// prints the recovery kit (Account ID and recovery key) once.
     Register {
         /// Username.
@@ -76,7 +86,7 @@ enum Command {
         display_name: String,
     },
     /// Bring an account back on this new profile from its recovery kit
-    /// (requires --server). Your other devices are removed unless
+    /// (on --server). Your other devices are removed unless
     /// --keep-devices.
     Restore {
         /// File with the recovery kit text, in any language; `-` reads it
@@ -93,7 +103,7 @@ enum Command {
         #[arg(long)]
         keep_devices: bool,
     },
-    /// Add this new profile as a device of an account (requires --server):
+    /// Add this new profile as a device of an account (on --server):
     /// prints a link code for `gim devices add` on a device of the account.
     Link {
         /// Do not ask whether the security codes match.
@@ -122,6 +132,20 @@ enum Command {
     Block { user: String },
     /// Unblock a user.
     Unblock { user: String },
+    /// Report a user (username or Account ID) to the keep server's
+    /// moderators. The messages you name are sent in plaintext: the server
+    /// cannot read your chats. Does not block the user.
+    Report {
+        user: String,
+        #[arg(long, value_enum)]
+        reason: Reason,
+        /// What happened, in your words (up to 1000 characters).
+        #[arg(long)]
+        note: Option<String>,
+        /// A message to include (its id, from `history`); repeatable.
+        #[arg(long = "message", value_name = "MESSAGE_ID")]
+        messages: Vec<String>,
+    },
     /// Look up users.
     #[command(subcommand)]
     Users(UsersCommand),
@@ -304,6 +328,27 @@ enum RecoveryKeyCommand {
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
+enum Reason {
+    Spam,
+    Harassment,
+    Inappropriate,
+    Scam,
+    Other,
+}
+
+impl From<Reason> for gim_sdk::ReportReason {
+    fn from(reason: Reason) -> Self {
+        match reason {
+            Reason::Spam => Self::Spam,
+            Reason::Harassment => Self::Harassment,
+            Reason::Inappropriate => Self::Inappropriate,
+            Reason::Scam => Self::Scam,
+            Reason::Other => Self::Other,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
 enum Switch {
     On,
     Off,
@@ -379,12 +424,14 @@ async fn run(cli: Cli) -> Result<Output> {
         .profile
         .ok_or_else(|| CliError::usage("--profile (or GIM_PROFILE) is required"))?;
     let server = cli.server.as_deref();
+    let keep = KeepArg::from_args(cli.keep_server.as_deref(), cli.no_keep);
+    let keep = keep.as_ref();
     if let Command::Register {
         handle,
         display_name,
     } = &cli.command
     {
-        return account::register(&dir, server, handle, display_name).await;
+        return account::register(&dir, server, keep, handle, display_name).await;
     }
     let command = match cli.command {
         Command::Restore {
@@ -399,12 +446,12 @@ async fn run(cli: Cli) -> Result<Output> {
                 recovery_key,
                 keep_devices,
             };
-            return account::restore(&dir, server, args).await;
+            return account::restore(&dir, server, keep, args).await;
         }
-        Command::Link { yes } => return account::link(&dir, server, yes).await,
+        Command::Link { yes } => return account::link(&dir, server, keep, yes).await,
         command => command,
     };
-    let ctx = Ctx::connect(&dir, server).await?;
+    let ctx = Ctx::connect(&dir, server, keep).await?;
     let output = dispatch(&ctx, command, cli.json).await?;
     ctx.client.flush_outbox().await?;
     Ok(output)
@@ -448,6 +495,12 @@ async fn dispatch(ctx: &Ctx, command: Command, json: bool) -> Result<Output> {
         }
         Command::Block { user } => settings::block(ctx, &user, true).await,
         Command::Unblock { user } => settings::block(ctx, &user, false).await,
+        Command::Report {
+            user,
+            reason,
+            note,
+            messages,
+        } => settings::report(ctx, &user, reason.into(), note, &messages).await,
         Command::Chats(ChatsCommand::Mute { chat, until_ms }) => {
             settings::mute(ctx, &chat, until_ms).await
         }
@@ -528,6 +581,7 @@ mod tests {
             "privacy",
             "block",
             "unblock",
+            "report",
             "users",
             "chats",
             "dm",
@@ -552,6 +606,30 @@ mod tests {
             );
         }
         assert!(help.contains("5  server, network or transport error"));
+    }
+
+    #[test]
+    fn report_takes_a_reason_a_note_and_messages() {
+        let cli = Cli::try_parse_from([
+            "gim",
+            "report",
+            "@mallory",
+            "--reason",
+            "scam",
+            "--note",
+            "fake prize",
+            "--message",
+            "m-1",
+            "--message",
+            "m-2",
+        ])
+        .unwrap();
+        assert!(matches!(
+            cli.command,
+            Command::Report { ref user, reason: Reason::Scam, ref note, ref messages }
+                if user == "@mallory" && note.as_deref() == Some("fake prize") && messages == &["m-1", "m-2"]
+        ));
+        assert!(Cli::try_parse_from(["gim", "report", "@mallory"]).is_err());
     }
 
     #[test]
@@ -657,6 +735,12 @@ mod tests {
         assert!(cli.json);
         assert_eq!(cli.profile, Some(PathBuf::from("/p")));
         assert!(matches!(cli.command, Command::History { limit: 5, .. }));
+        let cli = Cli::try_parse_from(["gim", "whoami", "--keep-server", "https://k", "--no-keep"])
+            .unwrap();
+        assert_eq!(
+            KeepArg::from_args(cli.keep_server.as_deref(), cli.no_keep),
+            Some(KeepArg::Off)
+        );
         let err = Cli::try_parse_from(["gim", "group", "create", "crew"]).unwrap_err();
         assert_eq!(err.exit_code(), i32::from(EXIT_USAGE));
     }

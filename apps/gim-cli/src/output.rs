@@ -22,8 +22,10 @@
 //! - `privacy show`: `{"read_receipts", "typing_indicators",
 //!   "blocked_user_ids": [str]}`; `block`, `unblock`: `{"user_id"}`
 //! - `chats mute|unmute|pin|unpin|archive|unarchive`: `{"chat_id"}`
-//! - `whoami`: `{"user_id", "device_id", "handle", "display_name", "server"}`
-//!   (`handle` / `display_name` may be `null`)
+//! - `whoami`: `{"user_id", "device_id", "handle", "display_name", "server",
+//!   "keep_server": str|null}` (`null`: the keep server is off;
+//!   `handle` / `display_name` may be `null`)
+//! - `report`: `{"report_id"}`
 //! - `users search`: `{"users": [User]}`, User = `{"user_id", "handle",
 //!   "display_name"}`
 //! - `chats list`: `{"chats": [ChatSummary]}`, ChatSummary =
@@ -141,6 +143,8 @@ pub struct WhoamiOut {
     pub handle: Option<String>,
     pub display_name: Option<String>,
     pub server: String,
+    /// `null` when the keep server is off.
+    pub keep_server: Option<String>,
 }
 
 #[derive(Debug, Serialize)]

@@ -11,7 +11,7 @@ use serde_json::json;
 
 use crate::error::{CliError, Result};
 use crate::output::{Output, RegisterOut, UserOut, UsersOut, WhoamiOut};
-use crate::profile::{Ctx, GimClient, Profile};
+use crate::profile::{Ctx, GimClient, KeepArg, Profile};
 
 /// The kit text of `user_id` and `code`, with the English labels.
 pub fn recovery_kit(user_id: &str, code: &str) -> String {
@@ -26,16 +26,16 @@ pub fn recovery_kit(user_id: &str, code: &str) -> String {
     format_recovery_kit(user_id, code, &labels)
 }
 
-/// A new profile's client on `--server`, which must not hold a session.
+/// A new profile's client on `--server` (default the built-in server) and
+/// the keep server chosen on the command line; it must not hold a session.
 async fn new_client(
     dir: &Path,
     server: Option<&str>,
-    command: &str,
+    keep: Option<&KeepArg>,
 ) -> Result<(Profile, String, GimClient)> {
-    let profile = Profile::create(dir)?;
-    let server = profile
-        .server(server)
-        .ok_or_else(|| CliError::usage(format!("{command} requires --server (or GIM_SERVER)")))?;
+    let mut profile = Profile::create(dir)?;
+    profile.apply_keep(keep)?;
+    let server = profile.server(server);
     let client = profile.client(&server)?;
     if client.restore_session().await? {
         return Err(CliError::usage("this profile already has an account"));
@@ -46,10 +46,11 @@ async fn new_client(
 pub async fn register(
     dir: &Path,
     server: Option<&str>,
+    keep: Option<&KeepArg>,
     handle: &str,
     display_name: &str,
 ) -> Result<Output> {
-    let (mut profile, server, client) = new_client(dir, server, "register").await?;
+    let (mut profile, server, client) = new_client(dir, server, keep).await?;
     let handle = handle.strip_prefix('@').unwrap_or(handle);
     let recovery_code = client.create_identity(display_name).await?;
     profile.config.server = Some(server.clone());
@@ -85,7 +86,12 @@ pub struct RestoreArgs {
 /// Restores the account into a new profile from its recovery kit: the
 /// kit text from `--kit-file` (`-`: stdin), or `--account-id` and
 /// `--recovery-key`, which also override what the kit holds.
-pub async fn restore(dir: &Path, server: Option<&str>, args: RestoreArgs) -> Result<Output> {
+pub async fn restore(
+    dir: &Path,
+    server: Option<&str>,
+    keep: Option<&KeepArg>,
+    args: RestoreArgs,
+) -> Result<Output> {
     let kit = match &args.kit_file {
         Some(path) if path.as_os_str() == "-" => {
             let mut text = String::new();
@@ -108,7 +114,7 @@ pub async fn restore(dir: &Path, server: Option<&str>, args: RestoreArgs) -> Res
     let code: RecoveryCode = gim_sdk::recovery_kit::normalize_recovery_code(&code)
         .parse()
         .map_err(|e| CliError::usage(format!("invalid recovery key: {e}")))?;
-    let (mut profile, server, client) = new_client(dir, server, "restore").await?;
+    let (mut profile, server, client) = new_client(dir, server, keep).await?;
     client
         .restore_from_recovery(&user_id, &code, !args.keep_devices)
         .await?;
@@ -146,8 +152,13 @@ fn confirm_code(code: &str, yes: bool) -> Result<bool> {
 /// Links this new profile to an account: prints the link code to enter on
 /// a device of that account (`gim devices add <code>`), waits for it and
 /// compares the security code.
-pub async fn link(dir: &Path, server: Option<&str>, yes: bool) -> Result<Output> {
-    let (mut profile, server, client) = new_client(dir, server, "link").await?;
+pub async fn link(
+    dir: &Path,
+    server: Option<&str>,
+    keep: Option<&KeepArg>,
+    yes: bool,
+) -> Result<Output> {
+    let (mut profile, server, client) = new_client(dir, server, keep).await?;
     let session = client.start_link(vec![server.clone()])?;
     eprintln!(
         "On a device that has your account, run:\n  gim devices add '{}'",
@@ -185,14 +196,16 @@ pub fn whoami(ctx: &Ctx) -> Result<Output> {
         handle: me.as_ref().map(|u| u.handle.clone()),
         display_name: me.map(|u| u.display_name),
         server: ctx.server.clone(),
+        keep_server: ctx.keep_server.clone(),
     };
     let human = format!(
-        "Account ID: {}\nDevice: {}\nUsername: {}\nName: {}\nServer: {}",
+        "Account ID: {}\nDevice: {}\nUsername: {}\nName: {}\nServer: {}\nKeep server: {}",
         out.user_id,
         out.device_id,
         out.handle.as_deref().unwrap_or("-"),
         out.display_name.as_deref().unwrap_or("-"),
-        out.server
+        out.server,
+        out.keep_server.as_deref().unwrap_or("off"),
     );
     Ok(Output::new(&out, human))
 }
